@@ -48,6 +48,18 @@ def parse_iso_date(value: str):
     return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
 
 
+def ensure_aware(dt: datetime):
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def auction_dt(auction: dict, key: str):
+    value = auction.get(key)
+    if isinstance(value, datetime):
+        return ensure_aware(value)
+    raise ValueError(f"Auction field {key} is missing or invalid datetime")
+
 def create_mongo_client():
     client_obj = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
     try:
@@ -226,7 +238,11 @@ def start_auction(auction_id):
         flash("Cannot start: required k auctioneers not present")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
-    if utcnow() < auction["start_date"]:
+    if len(auction.get("bidders", [])) == 0:
+        flash("Cannot start: no bidder has joined yet")
+        return redirect(url_for("auctioneer_panel", auction_id=auction_id))
+
+    if utcnow() < auction_dt(auction, "start_date"):
         flash("Cannot start before scheduled start date")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
@@ -248,7 +264,7 @@ def close_bidding(auction_id):
         flash("Bidding is not open")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
-    if utcnow() < auction["end_date"]:
+    if utcnow() < auction_dt(auction, "end_date"):
         flash("End date not reached yet")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
@@ -356,7 +372,7 @@ def submit_bid(auction_id):
         flash("Bid must be >= starting value")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
-    if not (auction["start_date"] <= utcnow() <= auction["end_date"]):
+    if not (auction_dt(auction, "start_date") <= utcnow() <= auction_dt(auction, "end_date")):
         flash("Current time is outside allowed bidding window")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
