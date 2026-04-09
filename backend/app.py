@@ -1,4 +1,5 @@
 import hashlib
+import os
 import secrets
 from datetime import datetime
 
@@ -19,10 +20,22 @@ app = Flask(
     template_folder="../frontend/templates",
     static_folder="../frontend/static",
 )
-app.secret_key = "change-me-in-production"
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-me-in-production")
 
-client = MongoClient("mongodb://localhost:27017/")
-db = client["decentralized_auction"]
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "decentralized_auction")
+
+
+def create_mongo_client():
+    # Supports both local MongoDB and MongoDB Atlas (mongodb+srv://).
+    client_obj = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+    # Force early connectivity check so Atlas misconfiguration fails fast.
+    client_obj.admin.command("ping")
+    return client_obj
+
+
+client = create_mongo_client()
+db = client[MONGO_DB_NAME]
 users_col = db["users"]
 auctions_col = db["auctions"]
 bids_col = db["bids"]
