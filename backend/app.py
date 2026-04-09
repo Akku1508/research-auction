@@ -31,6 +31,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-me-in-production")
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "decentralized_auction")
+PRIVATE_KEY_CIPHER_SEED = os.getenv("PRIVATE_KEY_CIPHER_SEED", app.secret_key)
 
 
 STATUS_REGISTRATION = "REGISTRATION"
@@ -68,6 +69,31 @@ def auction_dt(auction: dict, key: str):
     if isinstance(value, datetime):
         return ensure_aware(value)
     raise ValueError(f"Auction field {key} is missing or invalid datetime")
+
+
+
+def _xor_stream(data: bytes, seed: str) -> bytes:
+    key = hashlib.sha256(seed.encode()).digest()
+    out = bytearray()
+    counter = 0
+    while len(out) < len(data):
+        block = hashlib.sha256(key + counter.to_bytes(4, "big")).digest()
+        out.extend(block)
+        counter += 1
+    stream = bytes(out[: len(data)])
+    return bytes([b ^ stream[i] for i, b in enumerate(data)])
+
+
+def encrypt_private_key(private_key: int) -> str:
+    raw = str(private_key).encode()
+    return _xor_stream(raw, PRIVATE_KEY_CIPHER_SEED).hex()
+
+
+def decrypt_private_key(cipher_hex: str) -> int:
+    raw = bytes.fromhex(cipher_hex)
+    plain = _xor_stream(raw, PRIVATE_KEY_CIPHER_SEED)
+    return int(plain.decode())
+
 
 def create_mongo_client():
     client_obj = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
@@ -141,6 +167,7 @@ def signup():
                 "role": data["role"],
                 "public_key": point_to_json(pk),
                 "private_key_hash": hashlib.sha256(str(sk).encode()).hexdigest(),
+                    "private_key_cipher": encrypt_private_key(sk),
                 "created_at": utcnow(),
                 "past_activity": [],
             }
@@ -350,6 +377,7 @@ def register_bidder_to_auction(auction_id):
                 f"participant_keys.{bidder_id}": {
                     "public_key": point_to_json(pk),
                     "private_key_hash": hashlib.sha256(str(sk).encode()).hexdigest(),
+                    "private_key_cipher": encrypt_private_key(sk),
                 }
             },
         },
@@ -400,11 +428,16 @@ def submit_bid(auction_id):
             ring_entries.append(point_from_json(entry["public_key"]))
 
     sk_raw = session.get(f"auction_sk_{auction_id}")
-    if not sk_raw:
-        flash("Session key not found. Re-participate to regenerate auction keypair")
-        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    if sk_raw:
+        signer_sk = int(sk_raw)
+    else:
+        cipher = auction.get("participant_keys", {}).get(bidder_id, {}).get("private_key_cipher")
+        if not cipher:
+            flash("Session key missing and no recoverable auction key found")
+            return redirect(url_for("bidder_panel", auction_id=auction_id))
+        signer_sk = decrypt_private_key(cipher)
+        session[f"auction_sk_{auction_id}"] = str(signer_sk)
 
-    signer_sk = int(sk_raw)
     signer_pk = point_from_json(auction["participant_keys"][bidder_id]["public_key"])
     if signer_pk not in ring_entries:
         ring_entries.append(signer_pk)
