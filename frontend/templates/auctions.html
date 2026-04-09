@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Auctions</h2>
+
+{% if role == 'auctioneer' %}
+<div class="card">
+  <h3>Create Auction</h3>
+  <form method="post" class="grid three">
+    <input name="title" placeholder="Title" required />
+    <input name="bidder_limit" type="number" min="1" placeholder="Bidder limit" required />
+    <input name="threshold_k" type="number" min="1" placeholder="k auctioneers" required />
+    <input name="time" placeholder="time (text)" />
+    <button type="submit">Create</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="grid two">
+{% for a in auctions %}
+  <div class="card">
+    <h3>{{ a.title }}</h3>
+    <p>Status: <strong>{{ a.status }}</strong></p>
+    <p>Open/Closed: {{ 'Open' if a.status == 'OPEN' else 'Closed' }}</p>
+    <p>Auctioneers: {{ a.auctioneers|length }} | Bidders: {{ a.bidders|length }}</p>
+    <p>Threshold k: {{ a.threshold_k }}</p>
+
+    {% if role == 'bidder' %}
+      <form action="{{ url_for('register_bidder_to_auction', auction_id=a._id) }}" method="post"><button>Participate</button></form>
+      <form action="{{ url_for('submit_bid', auction_id=a._id) }}" method="post">
+        <input name="bid_value" type="number" min="1" placeholder="Bid value" required />
+        <button>Submit Bid (Commit + Ring Sig)</button>
+      </form>
+      <form action="{{ url_for('reveal_bid', auction_id=a._id) }}" method="post">
+        <input name="bid_value" type="number" min="1" placeholder="Reveal bid" required />
+        <input name="randomness" type="number" min="1" placeholder="Reveal randomness" required />
+        <button>Reveal + ZKP Verify</button>
+      </form>
+    {% endif %}
+
+    {% if role == 'auctioneer' %}
+      <form action="{{ url_for('join_auctioneer', auction_id=a._id) }}" method="post"><button>Join as Auctioneer</button></form>
+      <form action="{{ url_for('prepare_ot', auction_id=a._id) }}" method="post"><button>Share Secret Keys (OT)</button></form>
+      <form action="{{ url_for('declare_winner', auction_id=a._id) }}" method="post"><button>Distribute Secret Shares + Winner</button></form>
+    {% endif %}
+  </div>
+{% endfor %}
+</div>
+{% endblock %}
