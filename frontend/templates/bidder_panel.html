@@ -7,6 +7,9 @@
   </div>
   <p>Bid starting value: {{ auction.bid_start_value }}</p>
   <p><strong>Allowed Bid Options:</strong> {{ auction.bid_options }}</p>
+  {% if bidder_public_key %}
+  <p><strong>Your Auction Public Key:</strong> <code>{{ bidder_public_key }}</code></p>
+  {% endif %}
 
   {% if generated_keys %}
   <div class="stage-box">

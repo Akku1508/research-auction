@@ -396,6 +396,11 @@ def register_bidder_to_auction(auction_id):
         return redirect(url_for("auctions"))
 
     bidder_id = session["user_id"]
+    existing = auction.get("participant_keys", {}).get(bidder_id)
+    if existing:
+        flash("Already participating in this auction. Use your existing private key for bidding.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
     sk, pk = ring.generate_keypair()
     auctions_col.update_one(
         {"_id": ObjectId(auction_id)},
@@ -426,12 +431,14 @@ def bidder_panel(auction_id):
         return redirect(url_for("auctions"))
 
     bid_doc = bids_col.find_one({"auction_id": auction_id, "bidder_id": session["user_id"]})
+    bidder_public_key = auction.get("participant_keys", {}).get(session["user_id"], {}).get("public_key")
     return render_template(
         "bidder_panel.html",
         auction=serialize_auction(auction),
         bid_doc=bid_doc,
         generated_keys=session.get(f"auction_last_generated_keys_{auction_id}"),
         needs_private_key=not bool(session.get(f"auction_sk_{auction_id}")),
+        bidder_public_key=bidder_public_key,
     )
 
 
@@ -475,7 +482,8 @@ def submit_bid(auction_id):
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
     try:
-        signer_sk = int(sk_raw)
+        cleaned_key = "".join(ch for ch in str(sk_raw).strip() if ch.isdigit())
+        signer_sk = int(cleaned_key)
     except ValueError:
         flash("Invalid private key format")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
@@ -483,7 +491,7 @@ def submit_bid(auction_id):
     signer_pk = public_key_from_any(auction["participant_keys"][bidder_id]["public_key"])
     derived_pk = curve.scalar_mult(signer_sk, ring.G)
     if not curve.points_equal(derived_pk, signer_pk):
-        flash("Provided private key does not match your registered public key")
+        flash("Provided private key does not match your registered public key for this auction.")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
     session[f"auction_sk_{auction_id}"] = str(signer_sk)
     if signer_pk not in ring_entries:
