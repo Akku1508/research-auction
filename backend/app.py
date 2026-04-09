@@ -437,6 +437,8 @@ def bidder_panel(auction_id):
 
     bid_doc = bids_col.find_one({"auction_id": auction_id, "bidder_id": session["user_id"]})
     bidder_public_key = auction.get("participant_keys", {}).get(session["user_id"], {}).get("public_key")
+    bid_options = auction.get("bid_options", DEFAULT_BID_OPTIONS)
+    indexed_bid_options = [{"index0": idx, "index1": idx + 1, "value": value} for idx, value in enumerate(bid_options)]
     return render_template(
         "bidder_panel.html",
         auction=serialize_auction(auction),
@@ -444,6 +446,7 @@ def bidder_panel(auction_id):
         generated_keys=session.get(f"auction_last_generated_keys_{auction_id}"),
         needs_private_key=not bool(session.get(f"auction_sk_{auction_id}")),
         bidder_public_key=bidder_public_key,
+        indexed_bid_options=indexed_bid_options,
     )
 
 
@@ -502,8 +505,21 @@ def submit_bid(auction_id):
     if signer_pk not in ring_entries:
         ring_entries.append(signer_pk)
 
+    randomness_raw = request.form.get("randomness", "").strip()
+    if not randomness_raw:
+        flash("Generate randomness r_i first, then submit your commitment.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    try:
+        r_i = int("".join(ch for ch in randomness_raw if ch.isdigit()))
+    except ValueError:
+        flash("Invalid randomness format")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    if not (1 <= r_i < curve.n):
+        flash("Randomness r_i must be in valid scalar range.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
     # Stage-2 Pedersen commitment C_i = g^b_i h^r_i
-    commitment, r_i = pedersen.commit(bid_value)
+    commitment, r_i = pedersen.commit(bid_value, randomness=r_i)
     chosen_index = bid_options.index(bid_value)
 
     # Ring signature over commitment message.
@@ -575,6 +591,19 @@ def retrieve_ot_value(auction_id):
         flash("No OT state available for your bid")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
+    selected_index_raw = request.form.get("bid_index", "").strip()
+    if selected_index_raw == "":
+        flash("Choose bid index option before retrieving OT value.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    try:
+        selected_index = int(selected_index_raw)
+    except ValueError:
+        flash("Invalid bid index selected.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    if selected_index != int(bid.get("bid_index", -1)):
+        flash("Selected bid index does not match your committed bid option.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
     ot_state_db = bid["ot_sender_state"]
     sender_state = {
         "original_n": ot_state_db["original_n"],
@@ -583,7 +612,7 @@ def retrieve_ot_value(auction_id):
         "ciphertexts": [bytes.fromhex(x) for x in ot_state_db["ciphertexts"]],
         "level_pairs": [(bytes.fromhex(pair[0]), bytes.fromhex(pair[1])) for pair in ot_state_db["level_pairs"]],
     }
-    r_i = int.from_bytes(ot_tree.receiver_obtain_leaf(sender_state, int(bid["bid_index"])), "big")
+    r_i = int.from_bytes(ot_tree.receiver_obtain_leaf(sender_state, selected_index), "big")
 
     bids_col.update_one({"_id": bid["_id"]}, {"$set": {"ot_randomness": str(r_i), "ot_retrieved": True}})
     session[f"ot_randomness_{auction_id}"] = str(r_i)
