@@ -37,6 +37,7 @@ STATUS_BIDDING_OPEN = "BIDDING_OPEN"
 STATUS_BIDDING_CLOSED = "BIDDING_CLOSED"
 STATUS_OT_READY = "OT_READY"
 STATUS_COMPLETED = "COMPLETED"
+LOCAL_TZ = datetime.now().astimezone().tzinfo
 
 
 def utcnow():
@@ -44,8 +45,11 @@ def utcnow():
 
 
 def parse_iso_date(value: str):
-    # HTML datetime-local has no timezone, treat it as UTC for deterministic stage checks.
-    return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+    # HTML datetime-local carries user local wall-clock time.
+    local_dt = datetime.fromisoformat(value)
+    if local_dt.tzinfo is None:
+        local_dt = local_dt.replace(tzinfo=LOCAL_TZ)
+    return local_dt.astimezone(timezone.utc)
 
 
 def ensure_aware(dt: datetime):
