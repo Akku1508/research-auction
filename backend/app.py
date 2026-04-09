@@ -3,6 +3,7 @@ import os
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from bson import ObjectId
 from dotenv import load_dotenv
@@ -37,18 +38,22 @@ STATUS_BIDDING_OPEN = "BIDDING_OPEN"
 STATUS_BIDDING_CLOSED = "BIDDING_CLOSED"
 STATUS_OT_READY = "OT_READY"
 STATUS_COMPLETED = "COMPLETED"
-LOCAL_TZ = datetime.now().astimezone().tzinfo
+IST_TZ = ZoneInfo("Asia/Kolkata")
 
 
 def utcnow():
     return datetime.now(timezone.utc)
 
 
+def now_ist():
+    return datetime.now(IST_TZ)
+
+
 def parse_iso_date(value: str):
     # HTML datetime-local carries user local wall-clock time.
     local_dt = datetime.fromisoformat(value)
     if local_dt.tzinfo is None:
-        local_dt = local_dt.replace(tzinfo=LOCAL_TZ)
+        local_dt = local_dt.replace(tzinfo=IST_TZ)
     return local_dt.astimezone(timezone.utc)
 
 
@@ -87,8 +92,16 @@ ot_tree = NaorPinkasTreeOT()
 zk = ZKProofs()
 
 
+def format_ist(dt: datetime):
+    return ensure_aware(dt).astimezone(IST_TZ).strftime("%Y-%m-%d %H:%M:%S IST")
+
+
 def serialize_auction(a):
     a["_id"] = str(a["_id"])
+    if isinstance(a.get("start_date"), datetime):
+        a["start_date_display"] = format_ist(a["start_date"])
+    if isinstance(a.get("end_date"), datetime):
+        a["end_date_display"] = format_ist(a["end_date"])
     return a
 
 
@@ -197,7 +210,7 @@ def auctions():
         return redirect(url_for("auctions"))
 
     all_auctions = [serialize_auction(a) for a in auctions_col.find().sort("_id", -1)]
-    return render_template("auctions.html", auctions=all_auctions, role=session["role"], now=utcnow())
+    return render_template("auctions.html", auctions=all_auctions, role=session["role"], now=now_ist())
 
 
 @app.route("/auction/<auction_id>/join_auctioneer", methods=["POST"])
