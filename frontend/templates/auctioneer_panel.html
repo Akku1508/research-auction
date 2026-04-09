@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card glass">
+  <div class="row between">
+    <h2>Auctioneer Panel: {{ auction.title }}</h2>
+    <span class="badge status-{{ auction.status|lower }}">{{ auction.status }}</span>
+  </div>
+  <p>Required k auctioneers: {{ auction.required_auctioneers }} | Joined: {{ auction.auctioneers|length }}</p>
+  <p>Bids submitted: {{ bid_count }} | Revealed: {{ revealed_count }}</p>
+
+  <div class="action-grid">
+    <form action="{{ url_for('start_auction', auction_id=auction._id) }}" method="post"><button>Start Auction</button></form>
+    <form action="{{ url_for('close_bidding', auction_id=auction._id) }}" method="post"><button>Close Bidding</button></form>
+    <form action="{{ url_for('prepare_ot', auction_id=auction._id) }}" method="post"><button>Prepare OT Stage</button></form>
+    <form action="{{ url_for('declare_winner', auction_id=auction._id) }}" method="post"><button>Declare Winner</button></form>
+  </div>
+
+  {% if auction.winner %}
+  <div class="winner-box">
+    <h4>Winner</h4>
+    <p>Bidder ID: {{ auction.winner.bidder_id }}</p>
+    <p>Bid: {{ auction.winner.bid }}</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero card glass">
+  <h1>Decentralized Auction Hub</h1>
+  <p>Stage order is strictly enforced: Registration → Bidding Open → Bidding Closed → OT Ready → Completed.</p>
+  <div class="stage-strip">
+    <span>1 Registration</span><span>2 Bidding</span><span>3 OT</span><span>4 Reveal + Verify</span><span>5 Winner</span>
+  </div>
+</section>
+
+{% if role == 'auctioneer' %}
+<div class="card">
+  <h3>Create Auction</h3>
+  <form method="post" class="grid-form">
+    <label>Title <input name="title" placeholder="Auction title" required /></label>
+    <label>k Auctioneers Required <input name="required_auctioneers" type="number" min="1" required /></label>
+    <label>Bid Starting Value <input name="bid_start_value" type="number" min="1" required /></label>
+    <label>Start Date/Time <input name="start_date" type="datetime-local" required /></label>
+    <label>End Date/Time <input name="end_date" type="datetime-local" required /></label>
+    <button type="submit">Create Auction</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="cards-grid">
+{% for a in auctions %}
+  <article class="card auction-card">
+    <div class="row between">
+      <h3>{{ a.title }}</h3>
+      <span class="badge status-{{ a.status|lower }}">{{ a.status }}</span>
+    </div>
+    <p><strong>k required:</strong> {{ a.required_auctioneers }} | <strong>joined:</strong> {{ a.auctioneers|length }}</p>
+    <p><strong>Bid start value:</strong> {{ a.bid_start_value }}</p>
+    <p><strong>Window:</strong> {{ a.start_date }} → {{ a.end_date }}</p>
+
+    {% if role == 'auctioneer' %}
+      {% if session['user_id'] not in a.auctioneers %}
+        <form action="{{ url_for('join_auctioneer', auction_id=a._id) }}" method="post">
+          <button>Join as Auctioneer</button>
+        </form>
+      {% else %}
+        <a class="btn-link" href="{{ url_for('auctioneer_panel', auction_id=a._id) }}">Open Auctioneer Panel</a>
+      {% endif %}
+    {% endif %}
+
+    {% if role == 'bidder' %}
+      {% if session['user_id'] not in a.bidders %}
+        <form action="{{ url_for('register_bidder_to_auction', auction_id=a._id) }}" method="post">
+          <button>Participate (Generate Key Pair)</button>
+        </form>
+      {% else %}
+        <a class="btn-link" href="{{ url_for('bidder_panel', auction_id=a._id) }}">Open Bidder Panel</a>
+      {% endif %}
+    {% endif %}
+  </article>
+{% endfor %}
+</div>
+{% endblock %}
