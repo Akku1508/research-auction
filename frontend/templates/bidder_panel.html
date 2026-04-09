@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card glass">
+  <div class="row between">
+    <h2>Bidder Panel: {{ auction.title }}</h2>
+    <span class="badge status-{{ auction.status|lower }}">{{ auction.status }}</span>
+  </div>
+  <p>Bid starting value: {{ auction.bid_start_value }}</p>
+  <p><strong>Allowed Bid Options:</strong> {{ auction.bid_options }}</p>
+  {% if bidder_public_key %}
+  <p><strong>Your Auction Public Key:</strong> <code>{{ bidder_public_key }}</code></p>
+  {% endif %}
+
+  {% if generated_keys %}
+  <div class="stage-box">
+    <h4>Generated Auction Key Pair (shown once)</h4>
+    <p><strong>Public Key (single string):</strong></p>
+    <pre id="pubKeyText">{{ generated_keys.public_key }}</pre>
+    <p><strong>Private Key (keep secret):</strong></p>
+    <pre id="privKeyText">{{ generated_keys.private_key }}</pre>
+    <button type="button" class="btn-link" onclick="copyText('privKeyText')">Copy Private Key</button>
+    <p class="muted">Only public key is persisted in DB.</p>
+  </div>
+  {% endif %}
+
+  {% if auction.status == 'BIDDING_OPEN' %}
+  <form action="{{ url_for('submit_bid', auction_id=auction._id) }}" method="post" class="stack-actions">
+    <label>Bid Value
+      <select name="bid_value" required>
+        {% for option in auction.bid_options %}
+          <option value="{{ option }}">{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    {% if needs_private_key %}
+    <label>Private Key (required because session key is missing)
+      <input name="private_key" placeholder="Paste your private key" required />
+    </label>
+    {% endif %}
+
+    <button>Submit Commitment + Ring Signature</button>
+  </form>
+  {% else %}
+  <p class="muted">Bid submission is locked until auctioneer starts auction.</p>
+  {% endif %}
+
+  {% if auction.status == 'OT_READY' %}
+  <form action="{{ url_for('retrieve_ot_value', auction_id=auction._id) }}" method="post" class="stack-actions">
+    <button>Retrieve OT Randomness for Selected Bid Index</button>
+  </form>
+
+  <form action="{{ url_for('reveal_bid', auction_id=auction._id) }}" method="post" class="stack-actions">
+    <label>Reveal Bid (b_i)
+      <input name="bid_value" type="number" min="1" required />
+    </label>
+    <button>Reveal + ZKP Verification (uses OT randomness)</button>
+  </form>
+  {% else %}
+  <p class="muted">Reveal stage opens only after OT is prepared by auctioneer.</p>
+  {% endif %}
+
+  {% if bid_doc and bid_doc.commitment %}
+  <div class="stage-box">
+    <h4>Your Commitment Stored</h4>
+    <pre>{{ bid_doc.commitment }}</pre>
+  </div>
+  {% endif %}
+</div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}
