@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card profile-card">
+  <div class="avatar">👤</div>
+  <div>
+    <h2>{{ user.full_name }}</h2>
+    <p>@{{ user.username }} | {{ user.role }}</p>
+    <p>{{ user.email }} | {{ user.phone }}</p>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Past Activity & Participated Auctions</h3>
+  {% if auctions %}
+  <ul class="activity-list">
+    {% for a in auctions %}
+      <li>
+        <strong>{{ a.title }}</strong>
+        <span class="badge">{{ a.status }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No activity yet.</p>
+  {% endif %}
+</div>
+{% endblock %}
