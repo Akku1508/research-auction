@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card glass">
+  <div class="row between">
+    <h2>Auctioneer Panel: {{ auction.title }}</h2>
+    <span class="badge status-{{ auction.status|lower }}">{{ auction.status }}</span>
+  </div>
+  <p>Required k auctioneers: {{ auction.required_auctioneers }} | Joined: {{ auction.auctioneers|length }}</p>
+  <p>Bids submitted: {{ bid_count }} | Revealed: {{ revealed_count }} | Valid: {{ verified_count }} | Invalid: {{ invalid_count }}</p>
+
+  <div class="stage-box">
+    <h4>Edit Auction Details (Allowed by your rule)</h4>
+    <form action="{{ url_for('edit_auction', auction_id=auction._id) }}" method="post" class="grid-form">
+      <label>Title <input name="title" value="{{ auction.title }}" required /></label>
+      <label>k Auctioneers Required <input name="required_auctioneers" type="number" min="1" value="{{ auction.required_auctioneers }}" required /></label>
+      <label>Bid Starting Value <input name="bid_start_value" type="number" min="1" value="{{ auction.bid_start_value }}" required /></label>
+      <label>Start Date/Time <input name="start_date" type="datetime-local" value="{{ auction.start_date_input }}" required /></label>
+      <label>End Date/Time <input name="end_date" type="datetime-local" value="{{ auction.end_date_input }}" required /></label>
+      <button>Update Details</button>
+    </form>
+  </div>
+
+  <div class="action-grid">
+    <form action="{{ url_for('start_auction', auction_id=auction._id) }}" method="post"><button>Start Auction</button></form>
+    <form action="{{ url_for('close_bidding', auction_id=auction._id) }}" method="post"><button>Close Bidding (Manual)</button></form>
+    <form action="{{ url_for('prepare_ot', auction_id=auction._id) }}" method="post"><button>Prepare OT Stage</button></form>
+    <form action="{{ url_for('verify_revealed_bids', auction_id=auction._id) }}" method="post"><button>Verify Revealed Bids</button></form>
+    <form action="{{ url_for('declare_winner', auction_id=auction._id) }}" method="post"><button>Declare Winner</button></form>
+  </div>
+
+  <div class="stage-box">
+    <h4>Submitted Commitments (with signing key mapping)</h4>
+    {% if commitment_records %}
+      <ul class="activity-list">
+      {% for c in commitment_records %}
+        <li>
+          <strong>Commitment:</strong> <code>{{ c.commitment }}</code><br/>
+          <strong>Signing Public Key:</strong> <code>{{ c.signing_public_key }}</code><br/>
+          <strong>Key Image:</strong> <code>{{ c.key_image }}</code>
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No commitments submitted yet.</p>
+    {% endif %}
+  </div>
+
+  {% if auction.winner %}
+  <div class="winner-box">
+    <h4>Winner</h4>
+    <p>Bidder ID: {{ auction.winner.bidder_id }}</p>
+    <p>Bid: {{ auction.winner.bid }}</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

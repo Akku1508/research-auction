@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DAPV Decentralized Auction</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body class="{% if not session.get('user_id') %}auth-page{% endif %}">
+  {% if session.get('user_id') %}
+  <aside class="sidebar glass">
+    <h2>DAPV</h2>
+    <p class="small muted">Privacy-preserving auction network</p>
+    <a href="{{ url_for('dashboard') }}">🏠 Dashboard</a>
+    <a href="{{ url_for('auctions') }}">⚖️ Auctions</a>
+    <a href="{{ url_for('logout') }}">↩ Logout</a>
+  </aside>
+  {% endif %}
+
+  <main class="main-content {% if not session.get('user_id') %}auth-main{% endif %}">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash-wrap">
+        {% for message in messages %}<div class="flash">{{ message }}</div>{% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
