@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card profile-card glass">
+  <div class="avatar">👤</div>
+  <div>
+    <h2>{{ user.full_name }}</h2>
+    <p>@{{ user.username }} | {{ user.role }}</p>
+    <p>{{ user.email }} | {{ user.phone }}</p>
+  </div>
+</div>
+
+<div class="metrics-grid">
+  <div class="card metric"><h4>Total Auctions</h4><p>{{ auctions|length }}</p></div>
+  <div class="card metric"><h4>Open Stages</h4><p>{{ auctions|selectattr('status','equalto','BIDDING_OPEN')|list|length }}</p></div>
+  <div class="card metric"><h4>Completed</h4><p>{{ auctions|selectattr('status','equalto','COMPLETED')|list|length }}</p></div>
+</div>
+
+<div class="card">
+  <h3>Past Activity & Participated Auctions</h3>
+  {% if auctions %}
+  <ul class="activity-list">
+    {% for a in auctions %}
+      <li>
+        <strong>{{ a.title }}</strong>
+        <span class="badge status-{{ a.status|lower }}">{{ a.status }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No activity yet.</p>
+  {% endif %}
+</div>
+{% endblock %}
