@@ -1,0 +1,12 @@
+body{font-family:Arial,Helvetica,sans-serif;background:#f7f9fc;margin:0;color:#1f2937}
+.nav{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;background:#111827;color:white}
+.nav a{color:#c7d2fe;margin-left:12px;text-decoration:none}
+.container{max-width:1000px;margin:20px auto;padding:0 12px}
+.card{background:#fff;border-radius:10px;padding:14px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.narrow{max-width:420px;margin:auto}
+input,select,button{display:block;width:100%;padding:10px;margin:7px 0;border:1px solid #d1d5db;border-radius:8px}
+button{background:#2563eb;color:white;border:none;cursor:pointer}
+.grid.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid.three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.flash{background:#ecfeff;border:1px solid #22d3ee;padding:8px;border-radius:8px;margin:6px 0}
+@media(max-width:800px){.grid.two,.grid.three{grid-template-columns:1fr}}
