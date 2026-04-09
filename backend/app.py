@@ -2,10 +2,13 @@ import hashlib
 import os
 import secrets
 from datetime import datetime
+from pathlib import Path
 
 from bson import ObjectId
+from dotenv import load_dotenv
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from pymongo import MongoClient
+from pymongo.errors import ServerSelectionTimeoutError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from crypto.commitment import PedersenCommitment
@@ -14,6 +17,10 @@ from crypto.oblivious_transfer import NaorPinkasTreeOT
 from crypto.ring_signature import RingSignature
 from crypto.shamir import reconstruct_secret, split_secret
 from crypto.zk_proof import ZKProofs
+
+
+# Load backend/.env automatically when present (useful in local VS Code runs).
+load_dotenv(Path(__file__).with_name(".env"))
 
 app = Flask(
     __name__,
@@ -29,8 +36,14 @@ MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "decentralized_auction")
 def create_mongo_client():
     # Supports both local MongoDB and MongoDB Atlas (mongodb+srv://).
     client_obj = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
-    # Force early connectivity check so Atlas misconfiguration fails fast.
-    client_obj.admin.command("ping")
+    try:
+        # Force early connectivity check so misconfiguration fails fast.
+        client_obj.admin.command("ping")
+    except ServerSelectionTimeoutError as exc:
+        raise RuntimeError(
+            "MongoDB connection failed. Set MONGO_URI (Atlas) in backend/.env or environment variables. "
+            "Current fallback is mongodb://localhost:27017/ which requires local MongoDB service running."
+        ) from exc
     return client_obj
 
 
