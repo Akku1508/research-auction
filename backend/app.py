@@ -31,8 +31,6 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-me-in-production")
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "decentralized_auction")
-PRIVATE_KEY_CIPHER_SEED = os.getenv("PRIVATE_KEY_CIPHER_SEED", app.secret_key)
-
 
 STATUS_REGISTRATION = "REGISTRATION"
 STATUS_BIDDING_OPEN = "BIDDING_OPEN"
@@ -72,29 +70,6 @@ def auction_dt(auction: dict, key: str):
 
 
 
-def _xor_stream(data: bytes, seed: str) -> bytes:
-    key = hashlib.sha256(seed.encode()).digest()
-    out = bytearray()
-    counter = 0
-    while len(out) < len(data):
-        block = hashlib.sha256(key + counter.to_bytes(4, "big")).digest()
-        out.extend(block)
-        counter += 1
-    stream = bytes(out[: len(data)])
-    return bytes([b ^ stream[i] for i, b in enumerate(data)])
-
-
-def encrypt_private_key(private_key: int) -> str:
-    raw = str(private_key).encode()
-    return _xor_stream(raw, PRIVATE_KEY_CIPHER_SEED).hex()
-
-
-def decrypt_private_key(cipher_hex: str) -> int:
-    raw = bytes.fromhex(cipher_hex)
-    plain = _xor_stream(raw, PRIVATE_KEY_CIPHER_SEED)
-    return int(plain.decode())
-
-
 def create_mongo_client():
     client_obj = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
     try:
@@ -125,9 +100,13 @@ def format_ist(dt: datetime):
 def serialize_auction(a):
     a["_id"] = str(a["_id"])
     if isinstance(a.get("start_date"), datetime):
-        a["start_date_display"] = format_ist(a["start_date"])
+        aware_start = ensure_aware(a["start_date"]).astimezone(IST_TZ)
+        a["start_date_display"] = aware_start.strftime("%Y-%m-%d %H:%M:%S IST")
+        a["start_date_input"] = aware_start.strftime("%Y-%m-%dT%H:%M")
     if isinstance(a.get("end_date"), datetime):
-        a["end_date_display"] = format_ist(a["end_date"])
+        aware_end = ensure_aware(a["end_date"]).astimezone(IST_TZ)
+        a["end_date_display"] = aware_end.strftime("%Y-%m-%d %H:%M:%S IST")
+        a["end_date_input"] = aware_end.strftime("%Y-%m-%dT%H:%M")
     return a
 
 
@@ -167,7 +146,6 @@ def signup():
                 "role": data["role"],
                 "public_key": point_to_json(pk),
                 "private_key_hash": hashlib.sha256(str(sk).encode()).hexdigest(),
-                    "private_key_cipher": encrypt_private_key(sk),
                 "created_at": utcnow(),
                 "past_activity": [],
             }
@@ -227,6 +205,7 @@ def auctions():
             "bidders": [],
             "participant_keys": {},
             "commitments": [],
+            "commitment_records": [],
             "shares": [],
             "winner": None,
             "ot_sender_state": None,
@@ -265,6 +244,7 @@ def auctioneer_panel(auction_id):
         auction=serialize_auction(auction),
         bid_count=len(bid_rows),
         revealed_count=revealed_count,
+        commitment_records=auction.get("commitment_records", []),
     )
 
 
@@ -299,6 +279,28 @@ def start_auction(auction_id):
     return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
 
+@app.route("/auction/<auction_id>/edit", methods=["POST"])
+def edit_auction(auction_id):
+    if session.get("role") != "auctioneer":
+        return redirect(url_for("auctions"))
+
+    auction = auctions_col.find_one({"_id": ObjectId(auction_id)})
+    if not auction or session["user_id"] not in auction.get("auctioneers", []):
+        flash("Join as auctioneer first")
+        return redirect(url_for("auctions"))
+
+    update_data = {
+        "title": request.form["title"],
+        "required_auctioneers": int(request.form["required_auctioneers"]),
+        "start_date": parse_iso_date(request.form["start_date"]),
+        "end_date": parse_iso_date(request.form["end_date"]),
+        "bid_start_value": int(request.form["bid_start_value"]),
+    }
+    auctions_col.update_one({"_id": ObjectId(auction_id)}, {"$set": update_data})
+    flash("Auction details updated")
+    return redirect(url_for("auctioneer_panel", auction_id=auction_id))
+
+
 @app.route("/auction/<auction_id>/close_bidding", methods=["POST"])
 def close_bidding(auction_id):
     if session.get("role") != "auctioneer":
@@ -306,10 +308,6 @@ def close_bidding(auction_id):
     auction = auctions_col.find_one({"_id": ObjectId(auction_id)})
     if auction["status"] != STATUS_BIDDING_OPEN:
         flash("Bidding is not open")
-        return redirect(url_for("auctioneer_panel", auction_id=auction_id))
-
-    if utcnow() < auction_dt(auction, "end_date"):
-        flash("End date not reached yet")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
     auctions_col.update_one({"_id": ObjectId(auction_id)}, {"$set": {"status": STATUS_BIDDING_CLOSED}})
@@ -376,14 +374,14 @@ def register_bidder_to_auction(auction_id):
             "$set": {
                 f"participant_keys.{bidder_id}": {
                     "public_key": point_to_json(pk),
-                    "private_key_hash": hashlib.sha256(str(sk).encode()).hexdigest(),
-                    "private_key_cipher": encrypt_private_key(sk),
                 }
             },
         },
     )
     # Keep auction specific private key only in session (not DB) for signing.
     session[f"auction_sk_{auction_id}"] = str(sk)
+    session[f"auction_pk_{auction_id}"] = str(point_to_json(pk))
+    session[f"auction_last_generated_keys_{auction_id}"] = {"private_key": str(sk), "public_key": point_to_json(pk)}
     flash("Participation successful. Auction-specific key pair generated.")
     return redirect(url_for("bidder_panel", auction_id=auction_id))
 
@@ -398,7 +396,7 @@ def bidder_panel(auction_id):
         return redirect(url_for("auctions"))
 
     bid_doc = bids_col.find_one({"auction_id": auction_id, "bidder_id": session["user_id"]})
-    return render_template("bidder_panel.html", auction=serialize_auction(auction), bid_doc=bid_doc)
+    return render_template("bidder_panel.html", auction=serialize_auction(auction), bid_doc=bid_doc, generated_keys=session.get(f"auction_last_generated_keys_{auction_id}"))
 
 
 @app.route("/auction/<auction_id>/submit_bid", methods=["POST"])
@@ -412,6 +410,10 @@ def submit_bid(auction_id):
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
     bidder_id = session["user_id"]
+    if bids_col.find_one({"auction_id": auction_id, "bidder_id": bidder_id}):
+        flash("Bid already submitted. Commitment is binding and cannot be changed.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
     bid_value = int(request.form["bid_value"])
     if bid_value < auction.get("bid_start_value", 1):
         flash("Bid must be >= starting value")
@@ -428,15 +430,10 @@ def submit_bid(auction_id):
             ring_entries.append(point_from_json(entry["public_key"]))
 
     sk_raw = session.get(f"auction_sk_{auction_id}")
-    if sk_raw:
-        signer_sk = int(sk_raw)
-    else:
-        cipher = auction.get("participant_keys", {}).get(bidder_id, {}).get("private_key_cipher")
-        if not cipher:
-            flash("Session key missing and no recoverable auction key found")
-            return redirect(url_for("bidder_panel", auction_id=auction_id))
-        signer_sk = decrypt_private_key(cipher)
-        session[f"auction_sk_{auction_id}"] = str(signer_sk)
+    if not sk_raw:
+        flash("Session key missing. Re-participate before bidding.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    signer_sk = int(sk_raw)
 
     signer_pk = point_from_json(auction["participant_keys"][bidder_id]["public_key"])
     if signer_pk not in ring_entries:
@@ -449,6 +446,9 @@ def submit_bid(auction_id):
     key_image = ring.generate_key_image(signer_sk, signer_pk)
     msg = f"auction:{auction_id}|commit:{commitment[0]}:{commitment[1]}".encode()
     signature = ring.sign(msg, signer_sk, signer_pk, ring_entries, key_image)
+    if not ring.verify(signature):
+        flash("Ring signature verification failed")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
 
     bids_col.update_one(
         {"auction_id": auction_id, "bidder_id": bidder_id},
@@ -474,7 +474,17 @@ def submit_bid(auction_id):
 
     auctions_col.update_one(
         {"_id": ObjectId(auction_id)},
-        {"$addToSet": {"commitments": point_to_json(commitment)}},
+        {
+            "$addToSet": {"commitments": point_to_json(commitment)},
+            "$push": {
+                "commitment_records": {
+                    "commitment": point_to_json(commitment),
+                    "signing_public_key": point_to_json(signer_pk),
+                    "key_image": point_to_json(key_image),
+                    "submitted_at": utcnow(),
+                }
+            },
+        },
     )
 
     # Store r_i in bidder session for later reveal to avoid DB raw pre-reveal storage.
