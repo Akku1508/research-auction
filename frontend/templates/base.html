@@ -7,23 +7,21 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
-  <nav class="nav">
-    <div><strong>DAPV Auction</strong></div>
-    <div>
-      {% if session.get('user_id') %}
-      <a href="{{ url_for('dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('auctions') }}">Auctions</a>
-      <a href="{{ url_for('logout') }}">Logout</a>
-      {% endif %}
-    </div>
-  </nav>
+  <aside class="sidebar">
+    <h2>DAPV</h2>
+    {% if session.get('user_id') %}
+      <a href="{{ url_for('dashboard') }}">🏠 Dashboard</a>
+      <a href="{{ url_for('auctions') }}">⚖️ Auctions</a>
+      <a href="{{ url_for('logout') }}">↩ Logout</a>
+    {% endif %}
+  </aside>
 
-  <main class="container">
+  <main class="main-content">
     {% with messages = get_flashed_messages() %}
       {% if messages %}
-      <div class="flash-wrap">
+        <div class="flash-wrap">
         {% for message in messages %}<div class="flash">{{ message }}</div>{% endfor %}
-      </div>
+        </div>
       {% endif %}
     {% endwith %}
     {% block content %}{% endblock %}

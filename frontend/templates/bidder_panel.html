@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <h2>Bidder Panel: {{ auction.title }}</h2>
+  <p>Status: <strong>{{ auction.status }}</strong></p>
+  <p>Bid starting value: {{ auction.bid_start_value }}</p>
+
+  {% if auction.status == 'BIDDING_OPEN' %}
+  <form action="{{ url_for('submit_bid', auction_id=auction._id) }}" method="post" class="stack-actions">
+    <label>Bid Value
+      <input name="bid_value" type="number" min="{{ auction.bid_start_value }}" required />
+    </label>
+    <button>Submit Commitment + Ring Signature</button>
+  </form>
+  {% else %}
+  <p class="muted">Bid submission is locked until auctioneer starts auction.</p>
+  {% endif %}
+
+  {% if auction.status == 'OT_READY' %}
+  <form action="{{ url_for('reveal_bid', auction_id=auction._id) }}" method="post" class="stack-actions">
+    <label>Reveal Bid (b_i)
+      <input name="bid_value" type="number" min="1" required />
+    </label>
+    <label>Reveal Randomness (r_i)
+      <input name="randomness" type="number" min="1" required />
+    </label>
+    <button>Reveal + ZKP Verification</button>
+  </form>
+  {% else %}
+  <p class="muted">Reveal stage opens only after OT is prepared by auctioneer.</p>
+  {% endif %}
+
+  {% if bid_doc and bid_doc.commitment %}
+  <div class="stage-box">
+    <h4>Your Commitment Stored</h4>
+    <pre>{{ bid_doc.commitment }}</pre>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

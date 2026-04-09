@@ -1,22 +1,27 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="grid two">
-  <div class="card">
-    <h3>👤 Profile</h3>
-    <p><strong>Name:</strong> {{ user.full_name }}</p>
-    <p><strong>Username:</strong> {{ user.username }}</p>
-    <p><strong>Email:</strong> {{ user.email }}</p>
-    <p><strong>Role:</strong> {{ user.role }}</p>
+<div class="card profile-card">
+  <div class="avatar">👤</div>
+  <div>
+    <h2>{{ user.full_name }}</h2>
+    <p>@{{ user.username }} | {{ user.role }}</p>
+    <p>{{ user.email }} | {{ user.phone }}</p>
   </div>
-  <div class="card">
-    <h3>📜 Past Activity / Auctions Participated</h3>
-    {% if auctions %}
-      <ul>
-      {% for a in auctions %}<li>{{ a.title }} - {{ a.status }}</li>{% endfor %}
-      </ul>
-    {% else %}
-      <p>No activity yet.</p>
-    {% endif %}
-  </div>
+</div>
+
+<div class="card">
+  <h3>Past Activity & Participated Auctions</h3>
+  {% if auctions %}
+  <ul class="activity-list">
+    {% for a in auctions %}
+      <li>
+        <strong>{{ a.title }}</strong>
+        <span class="badge">{{ a.status }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No activity yet.</p>
+  {% endif %}
 </div>
 {% endblock %}
