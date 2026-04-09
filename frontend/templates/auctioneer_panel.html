@@ -1,12 +1,14 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card">
-  <h2>Auctioneer Panel: {{ auction.title }}</h2>
-  <p>Status: <strong>{{ auction.status }}</strong></p>
+<div class="card glass">
+  <div class="row between">
+    <h2>Auctioneer Panel: {{ auction.title }}</h2>
+    <span class="badge status-{{ auction.status|lower }}">{{ auction.status }}</span>
+  </div>
   <p>Required k auctioneers: {{ auction.required_auctioneers }} | Joined: {{ auction.auctioneers|length }}</p>
   <p>Bids submitted: {{ bid_count }} | Revealed: {{ revealed_count }}</p>
 
-  <div class="stack-actions">
+  <div class="action-grid">
     <form action="{{ url_for('start_auction', auction_id=auction._id) }}" method="post"><button>Start Auction</button></form>
     <form action="{{ url_for('close_bidding', auction_id=auction._id) }}" method="post"><button>Close Bidding</button></form>
     <form action="{{ url_for('prepare_ot', auction_id=auction._id) }}" method="post"><button>Prepare OT Stage</button></form>

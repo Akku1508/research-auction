@@ -1,20 +1,28 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card narrow">
-  <h2>Signup</h2>
-  <form method="post">
-    <label>Full Name</label><input name="full_name" required />
-    <label>Email</label><input name="email" type="email" required />
-    <label>Phone</label><input name="phone" required />
-    <label>Username</label><input name="username" required />
-    <label>Password</label><input name="password" type="password" required />
-    <label>Role</label>
-    <select name="role" required>
-      <option value="bidder">Bidder</option>
-      <option value="auctioneer">Auctioneer</option>
-    </select>
-    <button type="submit">Create Account</button>
-  </form>
-  <p>Already have account? <a href="{{ url_for('login') }}">Login here</a></p>
-</div>
+<section class="auth-shell">
+  <div class="auth-left">
+    <h1>Create your DAPV identity</h1>
+    <p>Register as bidder or auctioneer and participate in decentralized, stage-gated auctions.</p>
+  </div>
+
+  <div class="card auth-card glass">
+    <h2>Signup</h2>
+    <form method="post" class="grid-form">
+      <label>Full Name <input name="full_name" required /></label>
+      <label>Email <input name="email" type="email" required /></label>
+      <label>Phone <input name="phone" required /></label>
+      <label>Username <input name="username" required /></label>
+      <label>Password <input name="password" type="password" required /></label>
+      <label>Role
+        <select name="role" required>
+          <option value="bidder">Bidder</option>
+          <option value="auctioneer">Auctioneer</option>
+        </select>
+      </label>
+      <button type="submit">Create Account</button>
+    </form>
+    <p class="muted">Already have account? <a href="{{ url_for('login') }}">Login</a></p>
+  </div>
+</section>
 {% endblock %}

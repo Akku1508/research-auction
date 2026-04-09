@@ -3,6 +3,7 @@ import os
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from bson import ObjectId
 from dotenv import load_dotenv
@@ -30,6 +31,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-me-in-production")
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "decentralized_auction")
+PRIVATE_KEY_CIPHER_SEED = os.getenv("PRIVATE_KEY_CIPHER_SEED", app.secret_key)
 
 
 STATUS_REGISTRATION = "REGISTRATION"
@@ -37,15 +39,60 @@ STATUS_BIDDING_OPEN = "BIDDING_OPEN"
 STATUS_BIDDING_CLOSED = "BIDDING_CLOSED"
 STATUS_OT_READY = "OT_READY"
 STATUS_COMPLETED = "COMPLETED"
+IST_TZ = ZoneInfo("Asia/Kolkata")
 
 
 def utcnow():
     return datetime.now(timezone.utc)
 
 
+def now_ist():
+    return datetime.now(IST_TZ)
+
+
 def parse_iso_date(value: str):
-    # HTML datetime-local has no timezone, treat it as UTC for deterministic stage checks.
-    return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+    # HTML datetime-local carries user local wall-clock time.
+    local_dt = datetime.fromisoformat(value)
+    if local_dt.tzinfo is None:
+        local_dt = local_dt.replace(tzinfo=IST_TZ)
+    return local_dt.astimezone(timezone.utc)
+
+
+def ensure_aware(dt: datetime):
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def auction_dt(auction: dict, key: str):
+    value = auction.get(key)
+    if isinstance(value, datetime):
+        return ensure_aware(value)
+    raise ValueError(f"Auction field {key} is missing or invalid datetime")
+
+
+
+def _xor_stream(data: bytes, seed: str) -> bytes:
+    key = hashlib.sha256(seed.encode()).digest()
+    out = bytearray()
+    counter = 0
+    while len(out) < len(data):
+        block = hashlib.sha256(key + counter.to_bytes(4, "big")).digest()
+        out.extend(block)
+        counter += 1
+    stream = bytes(out[: len(data)])
+    return bytes([b ^ stream[i] for i, b in enumerate(data)])
+
+
+def encrypt_private_key(private_key: int) -> str:
+    raw = str(private_key).encode()
+    return _xor_stream(raw, PRIVATE_KEY_CIPHER_SEED).hex()
+
+
+def decrypt_private_key(cipher_hex: str) -> int:
+    raw = bytes.fromhex(cipher_hex)
+    plain = _xor_stream(raw, PRIVATE_KEY_CIPHER_SEED)
+    return int(plain.decode())
 
 
 def create_mongo_client():
@@ -71,8 +118,16 @@ ot_tree = NaorPinkasTreeOT()
 zk = ZKProofs()
 
 
+def format_ist(dt: datetime):
+    return ensure_aware(dt).astimezone(IST_TZ).strftime("%Y-%m-%d %H:%M:%S IST")
+
+
 def serialize_auction(a):
     a["_id"] = str(a["_id"])
+    if isinstance(a.get("start_date"), datetime):
+        a["start_date_display"] = format_ist(a["start_date"])
+    if isinstance(a.get("end_date"), datetime):
+        a["end_date_display"] = format_ist(a["end_date"])
     return a
 
 
@@ -112,6 +167,7 @@ def signup():
                 "role": data["role"],
                 "public_key": point_to_json(pk),
                 "private_key_hash": hashlib.sha256(str(sk).encode()).hexdigest(),
+                    "private_key_cipher": encrypt_private_key(sk),
                 "created_at": utcnow(),
                 "past_activity": [],
             }
@@ -181,7 +237,7 @@ def auctions():
         return redirect(url_for("auctions"))
 
     all_auctions = [serialize_auction(a) for a in auctions_col.find().sort("_id", -1)]
-    return render_template("auctions.html", auctions=all_auctions, role=session["role"], now=utcnow())
+    return render_template("auctions.html", auctions=all_auctions, role=session["role"], now=now_ist())
 
 
 @app.route("/auction/<auction_id>/join_auctioneer", methods=["POST"])
@@ -226,7 +282,11 @@ def start_auction(auction_id):
         flash("Cannot start: required k auctioneers not present")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
-    if utcnow() < auction["start_date"]:
+    if len(auction.get("bidders", [])) == 0:
+        flash("Cannot start: no bidder has joined yet")
+        return redirect(url_for("auctioneer_panel", auction_id=auction_id))
+
+    if utcnow() < auction_dt(auction, "start_date"):
         flash("Cannot start before scheduled start date")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
@@ -248,7 +308,7 @@ def close_bidding(auction_id):
         flash("Bidding is not open")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
-    if utcnow() < auction["end_date"]:
+    if utcnow() < auction_dt(auction, "end_date"):
         flash("End date not reached yet")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
@@ -317,6 +377,7 @@ def register_bidder_to_auction(auction_id):
                 f"participant_keys.{bidder_id}": {
                     "public_key": point_to_json(pk),
                     "private_key_hash": hashlib.sha256(str(sk).encode()).hexdigest(),
+                    "private_key_cipher": encrypt_private_key(sk),
                 }
             },
         },
@@ -356,7 +417,7 @@ def submit_bid(auction_id):
         flash("Bid must be >= starting value")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
-    if not (auction["start_date"] <= utcnow() <= auction["end_date"]):
+    if not (auction_dt(auction, "start_date") <= utcnow() <= auction_dt(auction, "end_date")):
         flash("Current time is outside allowed bidding window")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
@@ -367,11 +428,16 @@ def submit_bid(auction_id):
             ring_entries.append(point_from_json(entry["public_key"]))
 
     sk_raw = session.get(f"auction_sk_{auction_id}")
-    if not sk_raw:
-        flash("Session key not found. Re-participate to regenerate auction keypair")
-        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    if sk_raw:
+        signer_sk = int(sk_raw)
+    else:
+        cipher = auction.get("participant_keys", {}).get(bidder_id, {}).get("private_key_cipher")
+        if not cipher:
+            flash("Session key missing and no recoverable auction key found")
+            return redirect(url_for("bidder_panel", auction_id=auction_id))
+        signer_sk = decrypt_private_key(cipher)
+        session[f"auction_sk_{auction_id}"] = str(signer_sk)
 
-    signer_sk = int(sk_raw)
     signer_pk = point_from_json(auction["participant_keys"][bidder_id]["public_key"])
     if signer_pk not in ring_entries:
         ring_entries.append(signer_pk)

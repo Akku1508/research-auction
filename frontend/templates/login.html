@@ -1,14 +1,23 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card narrow">
-  <h2>Login</h2>
-  <form method="post">
-    <label>Username</label>
-    <input name="username" required />
-    <label>Password</label>
-    <input name="password" type="password" required />
-    <button type="submit">Login</button>
-  </form>
-  <p>New user? <a href="{{ url_for('signup') }}">Signup here</a></p>
-</div>
+<section class="auth-shell">
+  <div class="auth-left">
+    <h1>DAPV Auction</h1>
+    <p>Anonymous bidding with ring signatures, Pedersen commitments, OT, ZK proofs, and threshold auctioneers.</p>
+    <ul>
+      <li>🔐 Ring-based bidder privacy</li>
+      <li>🧾 Commitment binding</li>
+      <li>🤝 Threshold-controlled winner reveal</li>
+    </ul>
+  </div>
+  <div class="card auth-card glass">
+    <h2>Welcome Back</h2>
+    <form method="post" class="stack-actions">
+      <label>Username <input name="username" required /></label>
+      <label>Password <input name="password" type="password" required /></label>
+      <button type="submit">Login</button>
+    </form>
+    <p class="muted">New user? <a href="{{ url_for('signup') }}">Create account</a></p>
+  </div>
+</section>
 {% endblock %}

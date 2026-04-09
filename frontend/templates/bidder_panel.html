@@ -1,8 +1,10 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card">
-  <h2>Bidder Panel: {{ auction.title }}</h2>
-  <p>Status: <strong>{{ auction.status }}</strong></p>
+<div class="card glass">
+  <div class="row between">
+    <h2>Bidder Panel: {{ auction.title }}</h2>
+    <span class="badge status-{{ auction.status|lower }}">{{ auction.status }}</span>
+  </div>
   <p>Bid starting value: {{ auction.bid_start_value }}</p>
 
   {% if auction.status == 'BIDDING_OPEN' %}

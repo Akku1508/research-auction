@@ -1,8 +1,12 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="hero">
+<section class="hero card glass">
   <h1>Decentralized Auction Hub</h1>
-  <p>Strict stage-gated DAPV workflow: Registration → Bidding → OT → Reveal/Verify → Winner.</p>
+  <p>Stage order is strictly enforced: Registration → Bidding Open → Bidding Closed → OT Ready → Completed.</p>
+  <p><strong>Current Time (IST):</strong> {{ now.strftime("%Y-%m-%d %H:%M:%S %Z") }}</p>
+  <div class="stage-strip">
+    <span>1 Registration</span><span>2 Bidding</span><span>3 OT</span><span>4 Reveal + Verify</span><span>5 Winner</span>
+  </div>
 </section>
 
 {% if role == 'auctioneer' %}
@@ -24,11 +28,11 @@
   <article class="card auction-card">
     <div class="row between">
       <h3>{{ a.title }}</h3>
-      <span class="badge">{{ a.status }}</span>
+      <span class="badge status-{{ a.status|lower }}">{{ a.status }}</span>
     </div>
     <p><strong>k required:</strong> {{ a.required_auctioneers }} | <strong>joined:</strong> {{ a.auctioneers|length }}</p>
     <p><strong>Bid start value:</strong> {{ a.bid_start_value }}</p>
-    <p><strong>Window:</strong> {{ a.start_date }} → {{ a.end_date }}</p>
+    <p><strong>Window:</strong> {{ a.start_date_display or a.start_date }} → {{ a.end_date_display or a.end_date }}</p>
 
     {% if role == 'auctioneer' %}
       {% if session['user_id'] not in a.auctioneers %}
