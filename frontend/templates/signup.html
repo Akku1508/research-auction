@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card narrow">
+  <h2>Signup</h2>
+  <form method="post">
+    <label>Full Name</label><input name="full_name" required />
+    <label>Email</label><input name="email" type="email" required />
+    <label>Phone</label><input name="phone" required />
+    <label>Username</label><input name="username" required />
+    <label>Password</label><input name="password" type="password" required />
+    <label>Role</label>
+    <select name="role" required>
+      <option value="bidder">Bidder</option>
+      <option value="auctioneer">Auctioneer</option>
+    </select>
+    <button type="submit">Create Account</button>
+  </form>
+  <p>Already have account? <a href="{{ url_for('login') }}">Login here</a></p>
+</div>
+{% endblock %}
