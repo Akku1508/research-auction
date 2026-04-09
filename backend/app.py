@@ -110,6 +110,24 @@ def serialize_auction(a):
     return a
 
 
+
+
+def public_key_to_string(point):
+    return f"{point[0]:064x}{point[1]:064x}"
+
+
+def public_key_from_any(value):
+    if isinstance(value, dict):
+        return point_from_json(value)
+    if isinstance(value, str):
+        data = value.strip().lower()
+        if data.startswith("0x"):
+            data = data[2:]
+        if len(data) != 128:
+            raise ValueError("Invalid public key format")
+        return (int(data[:64], 16), int(data[64:], 16))
+    raise ValueError("Unsupported public key format")
+
 def current_user():
     if "user_id" not in session:
         return None
@@ -144,7 +162,7 @@ def signup():
                 "username": data["username"],
                 "password": generate_password_hash(data["password"]),
                 "role": data["role"],
-                "public_key": point_to_json(pk),
+                "public_key": public_key_to_string(pk),
                 "private_key_hash": hashlib.sha256(str(sk).encode()).hexdigest(),
                 "created_at": utcnow(),
                 "past_activity": [],
@@ -373,15 +391,15 @@ def register_bidder_to_auction(auction_id):
             "$addToSet": {"bidders": bidder_id},
             "$set": {
                 f"participant_keys.{bidder_id}": {
-                    "public_key": point_to_json(pk),
+                    "public_key": public_key_to_string(pk),
                 }
             },
         },
     )
     # Keep auction specific private key only in session (not DB) for signing.
     session[f"auction_sk_{auction_id}"] = str(sk)
-    session[f"auction_pk_{auction_id}"] = str(point_to_json(pk))
-    session[f"auction_last_generated_keys_{auction_id}"] = {"private_key": str(sk), "public_key": point_to_json(pk)}
+    session[f"auction_pk_{auction_id}"] = public_key_to_string(pk)
+    session[f"auction_last_generated_keys_{auction_id}"] = {"private_key": str(sk), "public_key": public_key_to_string(pk)}
     flash("Participation successful. Auction-specific key pair generated.")
     return redirect(url_for("bidder_panel", auction_id=auction_id))
 
@@ -396,7 +414,7 @@ def bidder_panel(auction_id):
         return redirect(url_for("auctions"))
 
     bid_doc = bids_col.find_one({"auction_id": auction_id, "bidder_id": session["user_id"]})
-    return render_template("bidder_panel.html", auction=serialize_auction(auction), bid_doc=bid_doc, generated_keys=session.get(f"auction_last_generated_keys_{auction_id}"))
+    return render_template("bidder_panel.html", auction=serialize_auction(auction), bid_doc=bid_doc, generated_keys=session.get(f"auction_last_generated_keys_{auction_id}"), needs_private_key=not bool(session.get(f"auction_sk_{auction_id}")))
 
 
 @app.route("/auction/<auction_id>/submit_bid", methods=["POST"])
@@ -427,15 +445,25 @@ def submit_bid(auction_id):
     ring_entries = []
     for _, entry in auction.get("participant_keys", {}).items():
         if entry.get("public_key"):
-            ring_entries.append(point_from_json(entry["public_key"]))
+            ring_entries.append(public_key_from_any(entry["public_key"]))
 
-    sk_raw = session.get(f"auction_sk_{auction_id}")
+    sk_raw = session.get(f"auction_sk_{auction_id}") or request.form.get("private_key")
     if not sk_raw:
-        flash("Session key missing. Re-participate before bidding.")
+        flash("Session key missing. Enter your private key to continue.")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
-    signer_sk = int(sk_raw)
 
-    signer_pk = point_from_json(auction["participant_keys"][bidder_id]["public_key"])
+    try:
+        signer_sk = int(sk_raw)
+    except ValueError:
+        flash("Invalid private key format")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
+    signer_pk = public_key_from_any(auction["participant_keys"][bidder_id]["public_key"])
+    derived_pk = curve.scalar_mult(signer_sk, ring.G)
+    if not curve.points_equal(derived_pk, signer_pk):
+        flash("Provided private key does not match your registered public key")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    session[f"auction_sk_{auction_id}"] = str(signer_sk)
     if signer_pk not in ring_entries:
         ring_entries.append(signer_pk)
 
@@ -479,7 +507,7 @@ def submit_bid(auction_id):
             "$push": {
                 "commitment_records": {
                     "commitment": point_to_json(commitment),
-                    "signing_public_key": point_to_json(signer_pk),
+                    "signing_public_key": public_key_to_string(signer_pk),
                     "key_image": point_to_json(key_image),
                     "submitted_at": utcnow(),
                 }

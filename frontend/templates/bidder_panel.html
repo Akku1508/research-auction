@@ -10,11 +10,12 @@
   {% if generated_keys %}
   <div class="stage-box">
     <h4>Generated Auction Key Pair (shown once)</h4>
-    <p><strong>Public Key:</strong></p>
-    <pre>{{ generated_keys.public_key }}</pre>
+    <p><strong>Public Key (single string):</strong></p>
+    <pre id="pubKeyText">{{ generated_keys.public_key }}</pre>
     <p><strong>Private Key (keep secret):</strong></p>
-    <pre>{{ generated_keys.private_key }}</pre>
-    <p class="muted">Only the public key is stored in database.</p>
+    <pre id="privKeyText">{{ generated_keys.private_key }}</pre>
+    <button type="button" class="btn-link" onclick="copyText('privKeyText')">Copy Private Key</button>
+    <p class="muted">Only public key is persisted in DB.</p>
   </div>
   {% endif %}
 
@@ -23,6 +24,13 @@
     <label>Bid Value
       <input name="bid_value" type="number" min="{{ auction.bid_start_value }}" required />
     </label>
+
+    {% if needs_private_key %}
+    <label>Private Key (required because session key is missing)
+      <input name="private_key" placeholder="Paste your private key" required />
+    </label>
+    {% endif %}
+
     <button>Submit Commitment + Ring Signature</button>
   </form>
   {% else %}
@@ -50,4 +58,5 @@
   </div>
   {% endif %}
 </div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% endblock %}
