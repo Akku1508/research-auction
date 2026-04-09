@@ -6,7 +6,11 @@
     <span class="badge status-{{ auction.status|lower }}">{{ auction.status }}</span>
   </div>
   <p>Bid starting value: {{ auction.bid_start_value }}</p>
-  <p><strong>Allowed Bid Options:</strong> {{ auction.bid_options }}</p>
+  <p><strong>Allowed Bid Options (Index - Value):</strong>
+    {% for item in indexed_bid_options %}
+      <code>{{ item.index1 }}-{{ item.value }}</code>{% if not loop.last %}, {% endif %}
+    {% endfor %}
+  </p>
   {% if bidder_public_key %}
   <p><strong>Your Auction Public Key:</strong> <code>{{ bidder_public_key }}</code></p>
   {% endif %}
@@ -27,11 +31,19 @@
   <form action="{{ url_for('submit_bid', auction_id=auction._id) }}" method="post" class="stack-actions">
     <label>Bid Value
       <select name="bid_value" required>
-        {% for option in auction.bid_options %}
-          <option value="{{ option }}">{{ option }}</option>
+        {% for item in indexed_bid_options %}
+          <option value="{{ item.value }}">{{ item.index1 }} - {{ item.value }}</option>
         {% endfor %}
       </select>
     </label>
+    <label>Commitment Randomness (r_i)
+      <input id="bidRandomnessInput" name="randomness" type="text" placeholder="Generate random r_i" required />
+    </label>
+    <div>
+      <button type="button" class="btn-link" onclick="generateRandomness('bidRandomnessInput', 'bidRandomnessPreview')">Generate r_i</button>
+      <button type="button" class="btn-link" onclick="copyInputValue('bidRandomnessInput')">Copy r_i</button>
+    </div>
+    <pre id="bidRandomnessPreview" class="muted"></pre>
 
     {% if needs_private_key %}
     <label>Private Key (required because session key is missing)
@@ -47,6 +59,13 @@
 
   {% if auction.status == 'OT_READY' %}
   <form action="{{ url_for('retrieve_ot_value', auction_id=auction._id) }}" method="post" class="stack-actions">
+    <label>Select Bid Index (Index - Value)
+      <select name="bid_index" required>
+        {% for item in indexed_bid_options %}
+          <option value="{{ item.index0 }}" {% if bid_doc and bid_doc.bid_index == item.index0 %}selected{% endif %}>{{ item.index1 }} - {{ item.value }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <button>Retrieve OT Randomness for Selected Bid Index</button>
   </form>
   {% if bid_doc and bid_doc.ot_randomness %}
