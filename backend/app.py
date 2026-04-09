@@ -38,6 +38,7 @@ STATUS_BIDDING_CLOSED = "BIDDING_CLOSED"
 STATUS_OT_READY = "OT_READY"
 STATUS_COMPLETED = "COMPLETED"
 IST_TZ = ZoneInfo("Asia/Kolkata")
+DEFAULT_BID_OPTIONS = [100, 200, 300, 400, 500]
 
 
 def utcnow():
@@ -99,6 +100,8 @@ def format_ist(dt: datetime):
 
 def serialize_auction(a):
     a["_id"] = str(a["_id"])
+    if not a.get("bid_options"):
+        a["bid_options"] = DEFAULT_BID_OPTIONS
     if isinstance(a.get("start_date"), datetime):
         aware_start = ensure_aware(a["start_date"]).astimezone(IST_TZ)
         a["start_date_display"] = aware_start.strftime("%Y-%m-%d %H:%M:%S IST")
@@ -219,6 +222,7 @@ def auctions():
             "start_date": start_dt,
             "end_date": end_dt,
             "bid_start_value": int(request.form["bid_start_value"]),
+            "bid_options": DEFAULT_BID_OPTIONS,
             "auctioneers": [session["user_id"]],
             "bidders": [],
             "participant_keys": {},
@@ -348,27 +352,35 @@ def prepare_ot(auction_id):
         flash("No commitments submitted")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
-    messages = []
-    for _ in bid_rows:
-        r_i = secrets.randbelow(curve.n - 1) + 1
-        messages.append(r_i.to_bytes(66, "big"))
+    bid_options = auction.get("bid_options", DEFAULT_BID_OPTIONS)
+    for bid in bid_rows:
+        chosen_index = int(bid.get("bid_index", 0))
+        hidden_r = int(bid.get("hidden_randomness", "0"))
+        messages = []
+        for idx in range(len(bid_options)):
+            if idx == chosen_index:
+                messages.append(hidden_r.to_bytes(66, "big"))
+            else:
+                messages.append((secrets.randbelow(curve.n - 1) + 1).to_bytes(66, "big"))
 
-    state = ot_tree.sender_prepare_tree(messages)
-    auctions_col.update_one(
-        {"_id": ObjectId(auction_id)},
-        {
-            "$set": {
-                "status": STATUS_OT_READY,
-                "ot_sender_state": {
-                    "original_n": state["original_n"],
-                    "n": state["n"],
-                    "k": state["k"],
-                    "ciphertexts": [c.hex() for c in state["ciphertexts"]],
-                    "level_pairs": [[p[0].hex(), p[1].hex()] for p in state["level_pairs"]],
-                },
-            }
-        },
-    )
+        state = ot_tree.sender_prepare_tree(messages)
+        bids_col.update_one(
+            {"_id": bid["_id"]},
+            {
+                "$set": {
+                    "ot_sender_state": {
+                        "original_n": state["original_n"],
+                        "n": state["n"],
+                        "k": state["k"],
+                        "ciphertexts": [c.hex() for c in state["ciphertexts"]],
+                        "level_pairs": [[p[0].hex(), p[1].hex()] for p in state["level_pairs"]],
+                    },
+                    "ot_ready": True,
+                }
+            },
+        )
+
+    auctions_col.update_one({"_id": ObjectId(auction_id)}, {"$set": {"status": STATUS_OT_READY}})
     flash("OT ready. Bidders may reveal (b_i, r_i) with ZKP.")
     return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
@@ -414,7 +426,13 @@ def bidder_panel(auction_id):
         return redirect(url_for("auctions"))
 
     bid_doc = bids_col.find_one({"auction_id": auction_id, "bidder_id": session["user_id"]})
-    return render_template("bidder_panel.html", auction=serialize_auction(auction), bid_doc=bid_doc, generated_keys=session.get(f"auction_last_generated_keys_{auction_id}"), needs_private_key=not bool(session.get(f"auction_sk_{auction_id}")))
+    return render_template(
+        "bidder_panel.html",
+        auction=serialize_auction(auction),
+        bid_doc=bid_doc,
+        generated_keys=session.get(f"auction_last_generated_keys_{auction_id}"),
+        needs_private_key=not bool(session.get(f"auction_sk_{auction_id}")),
+    )
 
 
 @app.route("/auction/<auction_id>/submit_bid", methods=["POST"])
@@ -433,6 +451,10 @@ def submit_bid(auction_id):
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
     bid_value = int(request.form["bid_value"])
+    bid_options = auction.get("bid_options", DEFAULT_BID_OPTIONS)
+    if bid_value not in bid_options:
+        flash(f"Bid must be one of allowed options: {bid_options}")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
     if bid_value < auction.get("bid_start_value", 1):
         flash("Bid must be >= starting value")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
@@ -469,6 +491,7 @@ def submit_bid(auction_id):
 
     # Stage-2 Pedersen commitment C_i = g^b_i h^r_i
     commitment, r_i = pedersen.commit(bid_value)
+    chosen_index = bid_options.index(bid_value)
 
     # Ring signature over commitment message.
     key_image = ring.generate_key_image(signer_sk, signer_pk)
@@ -487,6 +510,8 @@ def submit_bid(auction_id):
                 "commitment": point_to_json(commitment),
                 "revealed_bid": None,
                 "randomness": None,
+                "hidden_randomness": str(r_i),
+                "bid_index": chosen_index,
                 "ring_signature": {
                     "key_image": point_to_json(signature["key_image"]),
                     "c1": str(signature["c1"]),
@@ -522,6 +547,36 @@ def submit_bid(auction_id):
     return redirect(url_for("bidder_panel", auction_id=auction_id))
 
 
+@app.route("/auction/<auction_id>/retrieve_ot", methods=["POST"])
+def retrieve_ot_value(auction_id):
+    if session.get("role") != "bidder":
+        return redirect(url_for("auctions"))
+
+    auction = auctions_col.find_one({"_id": ObjectId(auction_id)})
+    if auction["status"] != STATUS_OT_READY:
+        flash("OT retrieval is available only in OT_READY stage")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
+    bid = bids_col.find_one({"auction_id": auction_id, "bidder_id": session["user_id"]})
+    if not bid or not bid.get("ot_sender_state"):
+        flash("No OT state available for your bid")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
+    ot_state_db = bid["ot_sender_state"]
+    sender_state = {
+        "original_n": ot_state_db["original_n"],
+        "n": ot_state_db["n"],
+        "k": ot_state_db["k"],
+        "ciphertexts": [bytes.fromhex(x) for x in ot_state_db["ciphertexts"]],
+        "level_pairs": [(bytes.fromhex(pair[0]), bytes.fromhex(pair[1])) for pair in ot_state_db["level_pairs"]],
+    }
+    r_i = int.from_bytes(ot_tree.receiver_obtain_leaf(sender_state, int(bid["bid_index"])), "big")
+
+    bids_col.update_one({"_id": bid["_id"]}, {"$set": {"ot_randomness": str(r_i), "ot_retrieved": True}})
+    flash("OT value retrieved successfully for your selected bid index.")
+    return redirect(url_for("bidder_panel", auction_id=auction_id))
+
+
 @app.route("/auction/<auction_id>/reveal", methods=["POST"])
 def reveal_bid(auction_id):
     if session.get("role") != "bidder":
@@ -538,7 +593,11 @@ def reveal_bid(auction_id):
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
     bid_value = int(request.form["bid_value"])
-    randomness = int(request.form["randomness"])
+    ot_randomness = bid.get("ot_randomness")
+    if not ot_randomness:
+        flash("Retrieve OT value first before reveal.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    randomness = int(ot_randomness)
     c_i = point_from_json(bid["commitment"])
 
     commit_ok = pedersen.verify_opening(c_i, bid_value, randomness)

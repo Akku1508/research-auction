@@ -6,6 +6,7 @@
     <span class="badge status-{{ auction.status|lower }}">{{ auction.status }}</span>
   </div>
   <p>Bid starting value: {{ auction.bid_start_value }}</p>
+  <p><strong>Allowed Bid Options:</strong> {{ auction.bid_options }}</p>
 
   {% if generated_keys %}
   <div class="stage-box">
@@ -22,7 +23,11 @@
   {% if auction.status == 'BIDDING_OPEN' %}
   <form action="{{ url_for('submit_bid', auction_id=auction._id) }}" method="post" class="stack-actions">
     <label>Bid Value
-      <input name="bid_value" type="number" min="{{ auction.bid_start_value }}" required />
+      <select name="bid_value" required>
+        {% for option in auction.bid_options %}
+          <option value="{{ option }}">{{ option }}</option>
+        {% endfor %}
+      </select>
     </label>
 
     {% if needs_private_key %}
@@ -38,14 +43,15 @@
   {% endif %}
 
   {% if auction.status == 'OT_READY' %}
+  <form action="{{ url_for('retrieve_ot_value', auction_id=auction._id) }}" method="post" class="stack-actions">
+    <button>Retrieve OT Randomness for Selected Bid Index</button>
+  </form>
+
   <form action="{{ url_for('reveal_bid', auction_id=auction._id) }}" method="post" class="stack-actions">
     <label>Reveal Bid (b_i)
       <input name="bid_value" type="number" min="1" required />
     </label>
-    <label>Reveal Randomness (r_i)
-      <input name="randomness" type="number" min="1" required />
-    </label>
-    <button>Reveal + ZKP Verification</button>
+    <button>Reveal + ZKP Verification (uses OT randomness)</button>
   </form>
   {% else %}
   <p class="muted">Reveal stage opens only after OT is prepared by auctioneer.</p>

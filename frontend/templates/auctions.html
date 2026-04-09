@@ -32,6 +32,7 @@
     </div>
     <p><strong>k required:</strong> {{ a.required_auctioneers }} | <strong>joined:</strong> {{ a.auctioneers|length }}</p>
     <p><strong>Bid start value:</strong> {{ a.bid_start_value }}</p>
+    <p><strong>Bid options:</strong> {{ a.bid_options }}</p>
     <p><strong>Window:</strong> {{ a.start_date_display or a.start_date }} → {{ a.end_date_display or a.end_date }}</p>
 
     {% if role == 'auctioneer' %}
