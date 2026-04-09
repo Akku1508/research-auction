@@ -36,6 +36,7 @@ STATUS_REGISTRATION = "REGISTRATION"
 STATUS_BIDDING_OPEN = "BIDDING_OPEN"
 STATUS_BIDDING_CLOSED = "BIDDING_CLOSED"
 STATUS_OT_READY = "OT_READY"
+STATUS_VERIFIED = "VERIFIED"
 STATUS_COMPLETED = "COMPLETED"
 IST_TZ = ZoneInfo("Asia/Kolkata")
 DEFAULT_BID_OPTIONS = [100, 200, 300, 400, 500]
@@ -261,11 +262,15 @@ def auctioneer_panel(auction_id):
 
     bid_rows = list(bids_col.find({"auction_id": auction_id}))
     revealed_count = sum(1 for b in bid_rows if b.get("revealed_bid") is not None)
+    verified_count = sum(1 for b in bid_rows if b.get("is_valid") is True)
+    invalid_count = sum(1 for b in bid_rows if b.get("is_valid") is False)
     return render_template(
         "auctioneer_panel.html",
         auction=serialize_auction(auction),
         bid_count=len(bid_rows),
         revealed_count=revealed_count,
+        verified_count=verified_count,
+        invalid_count=invalid_count,
         commitment_records=auction.get("commitment_records", []),
     )
 
@@ -581,6 +586,7 @@ def retrieve_ot_value(auction_id):
     r_i = int.from_bytes(ot_tree.receiver_obtain_leaf(sender_state, int(bid["bid_index"])), "big")
 
     bids_col.update_one({"_id": bid["_id"]}, {"$set": {"ot_randomness": str(r_i), "ot_retrieved": True}})
+    session[f"ot_randomness_{auction_id}"] = str(r_i)
     flash("OT value retrieved successfully for your selected bid index.")
     return redirect(url_for("bidder_panel", auction_id=auction_id))
 
@@ -601,20 +607,12 @@ def reveal_bid(auction_id):
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
     bid_value = int(request.form["bid_value"])
-    ot_randomness = bid.get("ot_randomness")
-    if not ot_randomness:
-        flash("Retrieve OT value first before reveal.")
+    randomness_raw = request.form.get("randomness", "").strip()
+    if not randomness_raw:
+        flash("Enter randomness r_i (from OT retrieval stage).")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
-    randomness = int(ot_randomness)
-    c_i = point_from_json(bid["commitment"])
-
-    commit_ok = pedersen.verify_opening(c_i, bid_value, randomness)
+    randomness = int("".join(ch for ch in randomness_raw if ch.isdigit()))
     proof = zk.prove_opening(bid_value, randomness)
-    zkp_ok = zk.verify_opening_proof(c_i, proof)
-
-    if not (commit_ok and zkp_ok):
-        flash("Invalid reveal or invalid ZKP")
-        return redirect(url_for("bidder_panel", auction_id=auction_id))
 
     bids_col.update_one(
         {"_id": bid["_id"]},
@@ -622,13 +620,66 @@ def reveal_bid(auction_id):
             "$set": {
                 "revealed_bid": bid_value,
                 "randomness": str(randomness),
+                "verification_status": "PENDING",
                 "zk_opening": {"T": point_to_json(proof["T"]), "e": str(proof["e"]), "z1": str(proof["z1"]), "z2": str(proof["z2"])}
             }
         },
     )
 
-    flash("Reveal accepted. Stage 4 verification passed.")
+    flash("Reveal submitted. Auctioneer verification is pending.")
     return redirect(url_for("bidder_panel", auction_id=auction_id))
+
+
+@app.route("/auction/<auction_id>/verify_reveals", methods=["POST"])
+def verify_revealed_bids(auction_id):
+    if session.get("role") != "auctioneer":
+        return redirect(url_for("auctions"))
+
+    auction = auctions_col.find_one({"_id": ObjectId(auction_id)})
+    if session["user_id"] not in auction.get("auctioneers", []):
+        flash("Join as auctioneer first")
+        return redirect(url_for("auctions"))
+
+    if auction["status"] != STATUS_OT_READY:
+        flash("Verification allowed only after OT stage")
+        return redirect(url_for("auctioneer_panel", auction_id=auction_id))
+
+    revealed = list(bids_col.find({"auction_id": auction_id, "revealed_bid": {"$ne": None}}))
+    if not revealed:
+        flash("No revealed bids to verify")
+        return redirect(url_for("auctioneer_panel", auction_id=auction_id))
+
+    valid_count, invalid_count = 0, 0
+    for bid in revealed:
+        c_i = point_from_json(bid["commitment"])
+        b_i = int(bid["revealed_bid"])
+        r_i = int(bid["randomness"])
+        commit_ok = pedersen.verify_opening(c_i, b_i, r_i)
+        zk_payload = bid.get("zk_opening", {})
+        zk_ok = False
+        if zk_payload and zk_payload.get("T"):
+            zk_ok = zk.verify_opening_proof(
+                c_i,
+                {
+                    "T": point_from_json(zk_payload["T"]),
+                    "e": int(zk_payload["e"]),
+                    "z1": int(zk_payload["z1"]),
+                    "z2": int(zk_payload["z2"]),
+                },
+            )
+        is_valid = bool(commit_ok and zk_ok)
+        bids_col.update_one(
+            {"_id": bid["_id"]},
+            {"$set": {"commitment_valid": commit_ok, "zk_valid": zk_ok, "is_valid": is_valid, "verification_status": "VERIFIED"}},
+        )
+        if is_valid:
+            valid_count += 1
+        else:
+            invalid_count += 1
+
+    auctions_col.update_one({"_id": ObjectId(auction_id)}, {"$set": {"status": STATUS_VERIFIED}})
+    flash(f"Verification completed. Valid bids: {valid_count}, Invalid bids: {invalid_count}.")
+    return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
 
 @app.route("/auction/<auction_id>/declare_winner", methods=["POST"])
@@ -641,11 +692,11 @@ def declare_winner(auction_id):
         flash("Join as auctioneer first")
         return redirect(url_for("auctions"))
 
-    if auction["status"] != STATUS_OT_READY:
-        flash("Stage lock: winner can be declared only after OT+Reveal stage")
+    if auction["status"] != STATUS_VERIFIED:
+        flash("Stage lock: winner declaration allowed only after auctioneer verification")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
-    valid = list(bids_col.find({"auction_id": auction_id, "revealed_bid": {"$ne": None}}))
+    valid = list(bids_col.find({"auction_id": auction_id, "is_valid": True}))
     if not valid:
         flash("No valid revealed bids")
         return redirect(url_for("auctioneer_panel", auction_id=auction_id))
