@@ -360,15 +360,9 @@ def prepare_ot(auction_id):
     bid_options = auction.get("bid_options", DEFAULT_BID_OPTIONS)
     for bid in bid_rows:
         chosen_index = int(bid.get("bid_index", 0))
-        hidden_r = int(bid.get("hidden_randomness", "0"))
-        messages = []
-        for idx in range(len(bid_options)):
-            if idx == chosen_index:
-                messages.append(hidden_r.to_bytes(66, "big"))
-            else:
-                messages.append((secrets.randbelow(curve.n - 1) + 1).to_bytes(66, "big"))
+        shared_keys = [secrets.token_bytes(32) for _ in range(len(bid_options))]
 
-        state = ot_tree.sender_prepare_tree(messages)
+        state = ot_tree.sender_prepare_tree(shared_keys)
         bids_col.update_one(
             {"_id": bid["_id"]},
             {
@@ -380,13 +374,14 @@ def prepare_ot(auction_id):
                         "ciphertexts": [c.hex() for c in state["ciphertexts"]],
                         "level_pairs": [[p[0].hex(), p[1].hex()] for p in state["level_pairs"]],
                     },
+                    "ot_expected_shared_key": shared_keys[chosen_index].hex(),
                     "ot_ready": True,
                 }
             },
         )
 
     auctions_col.update_one({"_id": ObjectId(auction_id)}, {"$set": {"status": STATUS_OT_READY}})
-    flash("OT ready. Bidders may reveal (b_i, r_i) with ZKP.")
+    flash("OT ready. Bidders may reveal (b_i, r_i, shared_key) with ZKP.")
     return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
 
@@ -612,11 +607,11 @@ def retrieve_ot_value(auction_id):
         "ciphertexts": [bytes.fromhex(x) for x in ot_state_db["ciphertexts"]],
         "level_pairs": [(bytes.fromhex(pair[0]), bytes.fromhex(pair[1])) for pair in ot_state_db["level_pairs"]],
     }
-    r_i = int.from_bytes(ot_tree.receiver_obtain_leaf(sender_state, selected_index), "big")
+    shared_key = ot_tree.receiver_obtain_leaf(sender_state, selected_index).hex()
 
-    bids_col.update_one({"_id": bid["_id"]}, {"$set": {"ot_randomness": str(r_i), "ot_retrieved": True}})
-    session[f"ot_randomness_{auction_id}"] = str(r_i)
-    flash("OT value retrieved successfully for your selected bid index.")
+    bids_col.update_one({"_id": bid["_id"]}, {"$set": {"ot_shared_key": shared_key, "ot_retrieved": True}})
+    session[f"ot_shared_key_{auction_id}"] = shared_key
+    flash("OT shared key retrieved successfully for your selected bid index.")
     return redirect(url_for("bidder_panel", auction_id=auction_id))
 
 
@@ -641,6 +636,11 @@ def reveal_bid(auction_id):
         flash("Enter randomness r_i (from OT retrieval stage).")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
     randomness = int("".join(ch for ch in randomness_raw if ch.isdigit()))
+    shared_key = request.form.get("shared_key", "").strip()
+    if not shared_key:
+        flash("Enter OT shared key (retrieved from OT stage).")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
     proof = zk.prove_opening(bid_value, randomness)
 
     bids_col.update_one(
@@ -649,6 +649,7 @@ def reveal_bid(auction_id):
             "$set": {
                 "revealed_bid": bid_value,
                 "randomness": str(randomness),
+                "revealed_shared_key": shared_key,
                 "verification_status": "PENDING",
                 "zk_opening": {"T": point_to_json(proof["T"]), "e": str(proof["e"]), "z1": str(proof["z1"]), "z2": str(proof["z2"])}
             }
@@ -684,6 +685,7 @@ def verify_revealed_bids(auction_id):
         b_i = int(bid["revealed_bid"])
         r_i = int(bid["randomness"])
         commit_ok = pedersen.verify_opening(c_i, b_i, r_i)
+        shared_key_ok = bool(bid.get("revealed_shared_key")) and bid.get("revealed_shared_key") == bid.get("ot_expected_shared_key")
         zk_payload = bid.get("zk_opening", {})
         zk_ok = False
         if zk_payload and zk_payload.get("T"):
@@ -696,10 +698,18 @@ def verify_revealed_bids(auction_id):
                     "z2": int(zk_payload["z2"]),
                 },
             )
-        is_valid = bool(commit_ok and zk_ok)
+        is_valid = bool(shared_key_ok and commit_ok and zk_ok)
         bids_col.update_one(
             {"_id": bid["_id"]},
-            {"$set": {"commitment_valid": commit_ok, "zk_valid": zk_ok, "is_valid": is_valid, "verification_status": "VERIFIED"}},
+            {
+                "$set": {
+                    "shared_key_valid": shared_key_ok,
+                    "commitment_valid": commit_ok,
+                    "zk_valid": zk_ok,
+                    "is_valid": is_valid,
+                    "verification_status": "VERIFIED",
+                }
+            },
         )
         if is_valid:
             valid_count += 1

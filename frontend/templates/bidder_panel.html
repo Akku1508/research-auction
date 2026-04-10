@@ -66,13 +66,13 @@
         {% endfor %}
       </select>
     </label>
-    <button>Retrieve OT Randomness for Selected Bid Index</button>
+    <button>Retrieve OT Shared Key for Selected Bid Index</button>
   </form>
-  {% if bid_doc and bid_doc.ot_randomness %}
+  {% if bid_doc and bid_doc.ot_shared_key %}
   <div class="stage-box">
-    <h4>Retrieved OT Randomness (rᵢ)</h4>
-    <pre id="otRandomnessText">{{ bid_doc.ot_randomness }}</pre>
-    <button type="button" class="btn-link" onclick="copyText('otRandomnessText')">Copy OT Randomness</button>
+    <h4>Retrieved OT Shared Key</h4>
+    <pre id="otSharedKeyText">{{ bid_doc.ot_shared_key }}</pre>
+    <button type="button" class="btn-link" onclick="copyText('otSharedKeyText')">Copy OT Shared Key</button>
   </div>
   {% endif %}
 
@@ -81,9 +81,12 @@
       <input name="bid_value" type="number" min="1" required />
     </label>
     <label>Reveal Randomness (r_i)
-      <input name="randomness" type="text" value="{{ bid_doc.ot_randomness if bid_doc and bid_doc.ot_randomness else '' }}" required />
+      <input name="randomness" type="text" required />
     </label>
-    <button>Reveal (b_i, r_i) for Auctioneer Verification</button>
+    <label>Reveal OT Shared Key
+      <input name="shared_key" type="text" value="{{ bid_doc.ot_shared_key if bid_doc and bid_doc.ot_shared_key else '' }}" required />
+    </label>
+    <button>Reveal (b_i, r_i, shared_key) for Auctioneer Verification</button>
   </form>
   {% else %}
   <p class="muted">Reveal stage opens only after OT is prepared by auctioneer.</p>
