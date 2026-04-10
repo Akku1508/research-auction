@@ -55,7 +55,7 @@
           <strong>Bidder:</strong> <code>{{ row.bidder_id }}</code><br/>
           <strong>Revealed (b_i, r_i):</strong> <code>({{ row.revealed_bid }}, {{ row.randomness }})</code><br/>
           <strong>Revealed Shared Key:</strong> <code>{{ row.revealed_shared_key }}</code><br/>
-          <strong>Expected Shared Key:</strong> <code>{{ row.expected_shared_key }}</code><br/>
+          <strong>Expected Shared Key (from revealed bid value):</strong> <code>{{ row.expected_shared_key_from_reveal_bid if row.expected_shared_key_from_reveal_bid else row.expected_shared_key }}</code><br/>
           <strong>Original Commitment (stored):</strong> <code>{{ row.original_commitment }}</code><br/>
           <strong>Expected Commitment (from reveal):</strong> <code>{{ row.expected_commitment }}</code><br/>
           <strong>Checks:</strong>

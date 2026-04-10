@@ -280,6 +280,7 @@ def auctioneer_panel(auction_id):
                 "randomness": bid.get("randomness"),
                 "revealed_shared_key": bid.get("revealed_shared_key"),
                 "expected_shared_key": bid.get("ot_expected_shared_key"),
+                "expected_shared_key_from_reveal_bid": bid.get("expected_shared_key_from_reveal_bid"),
                 "original_commitment": bid.get("commitment"),
                 "expected_commitment": bid.get("expected_commitment"),
                 "shared_key_valid": bid.get("shared_key_valid"),
@@ -386,6 +387,7 @@ def prepare_ot(auction_id):
     for bid in bid_rows:
         chosen_index = int(bid.get("bid_index", 0))
         shared_keys = [secrets.token_bytes(32) for _ in range(len(bid_options))]
+        ot_key_map = {str(bid_options[idx]): shared_keys[idx].hex() for idx in range(len(bid_options))}
 
         state = ot_tree.sender_prepare_tree(shared_keys)
         bids_col.update_one(
@@ -399,6 +401,7 @@ def prepare_ot(auction_id):
                         "ciphertexts": [c.hex() for c in state["ciphertexts"]],
                         "level_pairs": [[p[0].hex(), p[1].hex()] for p in state["level_pairs"]],
                     },
+                    "ot_key_map": ot_key_map,
                     "ot_expected_shared_key": shared_keys[chosen_index].hex(),
                     "ot_ready": True,
                 }
@@ -712,8 +715,11 @@ def verify_revealed_bids(auction_id):
         expected_commitment, _ = pedersen.commit(b_i, r_i)
         commit_ok = pedersen.verify_opening(c_i, b_i, r_i)
         revealed_shared_key = normalize_shared_key(bid.get("revealed_shared_key", ""))
-        expected_shared_key = normalize_shared_key(bid.get("ot_expected_shared_key", ""))
-        # Backward compatibility for records created before ot_expected_shared_key existed.
+        ot_key_map = bid.get("ot_key_map", {})
+        expected_shared_key = normalize_shared_key(ot_key_map.get(str(b_i), ""))
+        # Backward compatibility for records created before ot_key_map existed.
+        if not expected_shared_key:
+            expected_shared_key = normalize_shared_key(bid.get("ot_expected_shared_key", ""))
         if not expected_shared_key:
             expected_shared_key = normalize_shared_key(bid.get("ot_shared_key", ""))
         shared_key_ok = bool(revealed_shared_key and expected_shared_key and revealed_shared_key == expected_shared_key)
@@ -735,6 +741,7 @@ def verify_revealed_bids(auction_id):
             {
                 "$set": {
                     "shared_key_valid": shared_key_ok,
+                    "expected_shared_key_from_reveal_bid": expected_shared_key,
                     "commitment_valid": commit_ok,
                     "expected_commitment": point_to_json(expected_commitment),
                     "zk_valid": zk_ok,
