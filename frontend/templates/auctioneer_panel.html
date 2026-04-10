@@ -45,6 +45,32 @@
     {% endif %}
   </div>
 
+  <div class="stage-box">
+    <h4>Reveal Verification Details</h4>
+    {% set revealed_rows = verification_rows|selectattr('revealed_bid', 'ne', none)|list %}
+    {% if revealed_rows %}
+      <ul class="activity-list">
+      {% for row in revealed_rows %}
+        <li>
+          <strong>Bidder:</strong> <code>{{ row.bidder_id }}</code><br/>
+          <strong>Revealed (b_i, r_i):</strong> <code>({{ row.revealed_bid }}, {{ row.randomness }})</code><br/>
+          <strong>Revealed Shared Key:</strong> <code>{{ row.revealed_shared_key }}</code><br/>
+          <strong>Expected Shared Key:</strong> <code>{{ row.expected_shared_key }}</code><br/>
+          <strong>Original Commitment (stored):</strong> <code>{{ row.original_commitment }}</code><br/>
+          <strong>Expected Commitment (from reveal):</strong> <code>{{ row.expected_commitment }}</code><br/>
+          <strong>Checks:</strong>
+          shared_key={{ row.shared_key_valid }},
+          commitment={{ row.commitment_valid }},
+          zk={{ row.zk_valid }},
+          final={{ row.is_valid }}
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No revealed bids yet. Click "Verify Revealed Bids" after bidders reveal values.</p>
+    {% endif %}
+  </div>
+
   {% if auction.winner %}
   <div class="winner-box">
     <h4>Winner</h4>

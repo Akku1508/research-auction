@@ -132,6 +132,13 @@ def public_key_from_any(value):
         return (int(data[:64], 16), int(data[64:], 16))
     raise ValueError("Unsupported public key format")
 
+
+def normalize_shared_key(value: str):
+    normalized = (value or "").strip().lower()
+    if normalized.startswith("0x"):
+        normalized = normalized[2:]
+    return normalized
+
 def current_user():
     if "user_id" not in session:
         return None
@@ -264,6 +271,23 @@ def auctioneer_panel(auction_id):
     revealed_count = sum(1 for b in bid_rows if b.get("revealed_bid") is not None)
     verified_count = sum(1 for b in bid_rows if b.get("is_valid") is True)
     invalid_count = sum(1 for b in bid_rows if b.get("is_valid") is False)
+    verification_rows = []
+    for bid in bid_rows:
+        verification_rows.append(
+            {
+                "bidder_id": bid.get("bidder_id"),
+                "revealed_bid": bid.get("revealed_bid"),
+                "randomness": bid.get("randomness"),
+                "revealed_shared_key": bid.get("revealed_shared_key"),
+                "expected_shared_key": bid.get("ot_expected_shared_key"),
+                "original_commitment": bid.get("commitment"),
+                "expected_commitment": bid.get("expected_commitment"),
+                "shared_key_valid": bid.get("shared_key_valid"),
+                "commitment_valid": bid.get("commitment_valid"),
+                "zk_valid": bid.get("zk_valid"),
+                "is_valid": bid.get("is_valid"),
+            }
+        )
     return render_template(
         "auctioneer_panel.html",
         auction=serialize_auction(auction),
@@ -272,6 +296,7 @@ def auctioneer_panel(auction_id):
         verified_count=verified_count,
         invalid_count=invalid_count,
         commitment_records=auction.get("commitment_records", []),
+        verification_rows=verification_rows,
     )
 
 
@@ -360,15 +385,9 @@ def prepare_ot(auction_id):
     bid_options = auction.get("bid_options", DEFAULT_BID_OPTIONS)
     for bid in bid_rows:
         chosen_index = int(bid.get("bid_index", 0))
-        hidden_r = int(bid.get("hidden_randomness", "0"))
-        messages = []
-        for idx in range(len(bid_options)):
-            if idx == chosen_index:
-                messages.append(hidden_r.to_bytes(66, "big"))
-            else:
-                messages.append((secrets.randbelow(curve.n - 1) + 1).to_bytes(66, "big"))
+        shared_keys = [secrets.token_bytes(32) for _ in range(len(bid_options))]
 
-        state = ot_tree.sender_prepare_tree(messages)
+        state = ot_tree.sender_prepare_tree(shared_keys)
         bids_col.update_one(
             {"_id": bid["_id"]},
             {
@@ -380,13 +399,14 @@ def prepare_ot(auction_id):
                         "ciphertexts": [c.hex() for c in state["ciphertexts"]],
                         "level_pairs": [[p[0].hex(), p[1].hex()] for p in state["level_pairs"]],
                     },
+                    "ot_expected_shared_key": shared_keys[chosen_index].hex(),
                     "ot_ready": True,
                 }
             },
         )
 
     auctions_col.update_one({"_id": ObjectId(auction_id)}, {"$set": {"status": STATUS_OT_READY}})
-    flash("OT ready. Bidders may reveal (b_i, r_i) with ZKP.")
+    flash("OT ready. Bidders may reveal (b_i, r_i, shared_key) with ZKP.")
     return redirect(url_for("auctioneer_panel", auction_id=auction_id))
 
 
@@ -437,6 +457,8 @@ def bidder_panel(auction_id):
 
     bid_doc = bids_col.find_one({"auction_id": auction_id, "bidder_id": session["user_id"]})
     bidder_public_key = auction.get("participant_keys", {}).get(session["user_id"], {}).get("public_key")
+    bid_options = auction.get("bid_options", DEFAULT_BID_OPTIONS)
+    indexed_bid_options = [{"index0": idx, "index1": idx + 1, "value": value} for idx, value in enumerate(bid_options)]
     return render_template(
         "bidder_panel.html",
         auction=serialize_auction(auction),
@@ -444,6 +466,7 @@ def bidder_panel(auction_id):
         generated_keys=session.get(f"auction_last_generated_keys_{auction_id}"),
         needs_private_key=not bool(session.get(f"auction_sk_{auction_id}")),
         bidder_public_key=bidder_public_key,
+        indexed_bid_options=indexed_bid_options,
     )
 
 
@@ -502,8 +525,21 @@ def submit_bid(auction_id):
     if signer_pk not in ring_entries:
         ring_entries.append(signer_pk)
 
+    randomness_raw = request.form.get("randomness", "").strip()
+    if not randomness_raw:
+        flash("Generate randomness r_i first, then submit your commitment.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    try:
+        r_i = int("".join(ch for ch in randomness_raw if ch.isdigit()))
+    except ValueError:
+        flash("Invalid randomness format")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    if not (1 <= r_i < curve.n):
+        flash("Randomness r_i must be in valid scalar range.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
     # Stage-2 Pedersen commitment C_i = g^b_i h^r_i
-    commitment, r_i = pedersen.commit(bid_value)
+    commitment, r_i = pedersen.commit(bid_value, randomness=r_i)
     chosen_index = bid_options.index(bid_value)
 
     # Ring signature over commitment message.
@@ -575,6 +611,19 @@ def retrieve_ot_value(auction_id):
         flash("No OT state available for your bid")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
 
+    selected_index_raw = request.form.get("bid_index", "").strip()
+    if selected_index_raw == "":
+        flash("Choose bid index option before retrieving OT value.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    try:
+        selected_index = int(selected_index_raw)
+    except ValueError:
+        flash("Invalid bid index selected.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+    if selected_index != int(bid.get("bid_index", -1)):
+        flash("Selected bid index does not match your committed bid option.")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
     ot_state_db = bid["ot_sender_state"]
     sender_state = {
         "original_n": ot_state_db["original_n"],
@@ -583,11 +632,11 @@ def retrieve_ot_value(auction_id):
         "ciphertexts": [bytes.fromhex(x) for x in ot_state_db["ciphertexts"]],
         "level_pairs": [(bytes.fromhex(pair[0]), bytes.fromhex(pair[1])) for pair in ot_state_db["level_pairs"]],
     }
-    r_i = int.from_bytes(ot_tree.receiver_obtain_leaf(sender_state, int(bid["bid_index"])), "big")
+    shared_key = ot_tree.receiver_obtain_leaf(sender_state, selected_index).hex()
 
-    bids_col.update_one({"_id": bid["_id"]}, {"$set": {"ot_randomness": str(r_i), "ot_retrieved": True}})
-    session[f"ot_randomness_{auction_id}"] = str(r_i)
-    flash("OT value retrieved successfully for your selected bid index.")
+    bids_col.update_one({"_id": bid["_id"]}, {"$set": {"ot_shared_key": shared_key, "ot_retrieved": True}})
+    session[f"ot_shared_key_{auction_id}"] = shared_key
+    flash("OT shared key retrieved successfully for your selected bid index.")
     return redirect(url_for("bidder_panel", auction_id=auction_id))
 
 
@@ -609,9 +658,14 @@ def reveal_bid(auction_id):
     bid_value = int(request.form["bid_value"])
     randomness_raw = request.form.get("randomness", "").strip()
     if not randomness_raw:
-        flash("Enter randomness r_i (from OT retrieval stage).")
+        flash("Enter commitment randomness r_i used during bid submission.")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
     randomness = int("".join(ch for ch in randomness_raw if ch.isdigit()))
+    shared_key = normalize_shared_key(request.form.get("shared_key", ""))
+    if not shared_key:
+        flash("Enter OT shared key (retrieved from OT stage).")
+        return redirect(url_for("bidder_panel", auction_id=auction_id))
+
     proof = zk.prove_opening(bid_value, randomness)
 
     bids_col.update_one(
@@ -620,6 +674,7 @@ def reveal_bid(auction_id):
             "$set": {
                 "revealed_bid": bid_value,
                 "randomness": str(randomness),
+                "revealed_shared_key": shared_key,
                 "verification_status": "PENDING",
                 "zk_opening": {"T": point_to_json(proof["T"]), "e": str(proof["e"]), "z1": str(proof["z1"]), "z2": str(proof["z2"])}
             }
@@ -654,7 +709,14 @@ def verify_revealed_bids(auction_id):
         c_i = point_from_json(bid["commitment"])
         b_i = int(bid["revealed_bid"])
         r_i = int(bid["randomness"])
+        expected_commitment, _ = pedersen.commit(b_i, r_i)
         commit_ok = pedersen.verify_opening(c_i, b_i, r_i)
+        revealed_shared_key = normalize_shared_key(bid.get("revealed_shared_key", ""))
+        expected_shared_key = normalize_shared_key(bid.get("ot_expected_shared_key", ""))
+        # Backward compatibility for records created before ot_expected_shared_key existed.
+        if not expected_shared_key:
+            expected_shared_key = normalize_shared_key(bid.get("ot_shared_key", ""))
+        shared_key_ok = bool(revealed_shared_key and expected_shared_key and revealed_shared_key == expected_shared_key)
         zk_payload = bid.get("zk_opening", {})
         zk_ok = False
         if zk_payload and zk_payload.get("T"):
@@ -667,10 +729,19 @@ def verify_revealed_bids(auction_id):
                     "z2": int(zk_payload["z2"]),
                 },
             )
-        is_valid = bool(commit_ok and zk_ok)
+        is_valid = bool(shared_key_ok and commit_ok and zk_ok)
         bids_col.update_one(
             {"_id": bid["_id"]},
-            {"$set": {"commitment_valid": commit_ok, "zk_valid": zk_ok, "is_valid": is_valid, "verification_status": "VERIFIED"}},
+            {
+                "$set": {
+                    "shared_key_valid": shared_key_ok,
+                    "commitment_valid": commit_ok,
+                    "expected_commitment": point_to_json(expected_commitment),
+                    "zk_valid": zk_ok,
+                    "is_valid": is_valid,
+                    "verification_status": "VERIFIED",
+                }
+            },
         )
         if is_valid:
             valid_count += 1
