@@ -81,7 +81,7 @@
       <input name="bid_value" type="number" min="1" required />
     </label>
     <label>Reveal Randomness (r_i)
-      <input name="randomness" type="text" required />
+      <input name="randomness" type="text" value="{{ bid_doc.hidden_randomness if bid_doc and bid_doc.hidden_randomness else '' }}" required />
     </label>
     <label>Reveal OT Shared Key
       <input name="shared_key" type="text" value="{{ bid_doc.ot_shared_key if bid_doc and bid_doc.ot_shared_key else '' }}" required />

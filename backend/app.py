@@ -132,6 +132,13 @@ def public_key_from_any(value):
         return (int(data[:64], 16), int(data[64:], 16))
     raise ValueError("Unsupported public key format")
 
+
+def normalize_shared_key(value: str):
+    normalized = (value or "").strip().lower()
+    if normalized.startswith("0x"):
+        normalized = normalized[2:]
+    return normalized
+
 def current_user():
     if "user_id" not in session:
         return None
@@ -633,10 +640,10 @@ def reveal_bid(auction_id):
     bid_value = int(request.form["bid_value"])
     randomness_raw = request.form.get("randomness", "").strip()
     if not randomness_raw:
-        flash("Enter randomness r_i (from OT retrieval stage).")
+        flash("Enter commitment randomness r_i used during bid submission.")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
     randomness = int("".join(ch for ch in randomness_raw if ch.isdigit()))
-    shared_key = request.form.get("shared_key", "").strip()
+    shared_key = normalize_shared_key(request.form.get("shared_key", ""))
     if not shared_key:
         flash("Enter OT shared key (retrieved from OT stage).")
         return redirect(url_for("bidder_panel", auction_id=auction_id))
@@ -685,7 +692,12 @@ def verify_revealed_bids(auction_id):
         b_i = int(bid["revealed_bid"])
         r_i = int(bid["randomness"])
         commit_ok = pedersen.verify_opening(c_i, b_i, r_i)
-        shared_key_ok = bool(bid.get("revealed_shared_key")) and bid.get("revealed_shared_key") == bid.get("ot_expected_shared_key")
+        revealed_shared_key = normalize_shared_key(bid.get("revealed_shared_key", ""))
+        expected_shared_key = normalize_shared_key(bid.get("ot_expected_shared_key", ""))
+        # Backward compatibility for records created before ot_expected_shared_key existed.
+        if not expected_shared_key:
+            expected_shared_key = normalize_shared_key(bid.get("ot_shared_key", ""))
+        shared_key_ok = bool(revealed_shared_key and expected_shared_key and revealed_shared_key == expected_shared_key)
         zk_payload = bid.get("zk_opening", {})
         zk_ok = False
         if zk_payload and zk_payload.get("T"):
