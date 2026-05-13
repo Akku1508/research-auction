@@ -1,0 +1,604 @@
+PAGES: 6
+
+=== PAGE 1 ===
+Sealed-Bid auction scheme based on Blockchain
+and Secure Multi-Party Computation
+Jingzhong Wang1* ,Yi Shen1 ,Baocheng Wang1
+1. School of Information Science and Technology, North China University of Technology, Beijing, China
+jingzhongwang@163.com, sy970521@163.com, wbaocheng@ncut.edu.cn
+Abstract—With the rapid development of Internet
+technology, traditional offline auction is gradually
+transforming to electronic auction, in which the privacy of
+bidders is becoming more and more concerned. Most of the
+existing sealed electronic auction schemes guarantee the
+fairness of the auction through the third party auction
+house, but the third party’s distrust also brings security
+risks to the privacy disclosure of the bidder’s identity, price
+tag and so on. In view of the above problems, this paper
+proposes an auction scheme based on blockchain and secure
+multiparty computing. The scheme takes advantage of the
+characteristics of decentralized and tamper proof of
+blockchain to build an auction environment without third
+party. The idea of deposit on blockchain restricts the
+behavior of bidders and improves the security of sealed
+auction scheme. Secure multi-party computation and ring
+signature technology are used to protect the bidders’
+privacy from disclosure and public verifiability. Through
+security analysis, the proposed auction scheme meets the
+security requirements of electronic auction, and is more fair
+and reliable than the traditional auction scheme.
+Keywords—electronic auction; blockchain; secure multi-
+party computing; ring signature; privacy protection
+I. I NTRODUCTION
+With the rapid development of Internet technology and
+the rise of electronic commerce, electronic auction has
+become a way for people to auction goods. A good
+auction system can provide a fair trading environment for
+buyers and sellers, save users time and cost, and make
+people enjoy the convenience of technology without
+leaving home. However, while enjoying the convenience,
+the security problem of electronic auction has gradually
+emerged. Therefore, how to design secure electronic
+auction protocol has become one of the research hotspots
+in recent years.
+Sealed auction can well protect the identity and price
+information of bidders other than the successful bidder,
+and protect the privacy of unsuccessful bidders. It is a
+more extensive form of auction in today’s society. The
+scheme of this paper is about the first price sealed auction.
+In order to ensure that the seller does not collude with the
+bidder and the bidders do not collude with each other, the
+following security requirements should be met:
+Fairness: Bidders have the same status to obtain
+information, and there is no one party can obtain more
+information than the other party, which is more conducive
+to winning the auction.
+Anonymity: The identity information of bidding
+participants must be kept confidential.
+Secrecy of bidding price:After the completion of
+bidding, the bid prices of all bidders except the successful
+bidder shall be kept confidential.
+Undeniablity: The bidder can not deny his tender
+price after bidding.
+Unforgeability: No one can forge the identity of the
+bidder to participate in the auction.
+Public verifiability:Everyone can verify the identity
+of the successful bidder.
+For sealed auction, many researches have been made
+by the predecessors. Franklin and Reiter[1] put forward a
+sealed security auction scheme for the first time. In this
+scheme, electronic money is used to protect the bid price
+from tampering and to restrain the bidder’s behavior
+through a certain amount of money. Kikuchi et al.[2]
+proposed an auction scheme based on multi-party secret
+computing protocol. Xiao[4] analyzed the security defects
+of the scheme proposed by Yang[3]. On the basis of the
+original scheme, they promised a random number and a
+bid price by using the double commitment scheme, which
+made the improved scheme have the properties of
+unforgeability and non repudiation, but still can not meet
+the confidentiality of the bid price.
+In the existing research on sealed auction, there are
+often third-party auction houses. However, the auction
+house will charge a lot of fees when carrying out the
+auction activities, which increases some extra cost.
+Brandt[5] designed an auction protocol that does not rely
+on a trusted third party to protect the privacy of bidders in
+the auction, but all the calculations in the protocol need to
+be completed by the seller himself. Cheng et al.[6]
+proposed a sealed electronic auction scheme based on the
+untrusted third party, which uses digital signature
+technology to verify the identity of bidders.
+With the emergence of blockchain, people begin to
+gradually use blockchain technology to replace the third
+party. At present, some researches have solved practical
+problems through blockchain technology. Such as
+logistics, anti-counterfeiting traceability, electronic voting,
+electronic auction, etc. Peng[7] designed an electronic
+407
+978-1-6654-1599-6/21/$31.00 ©2021 IEEE
+IEEE ITNEC(ISSN:2693-3128)
+2021 IEEE 5th Information Technology,Networking,Electronic and Automation Control Conference (ITNEC) | 978-1-6654-1599-6/21/$31.00 ©2021 IEEE | DOI: 10.1109/ITNEC52019.2021.9587239
+Authorized licensed use limited to: Indira Gandhi Delhi Technical University for Women. Downloaded on November 20,2025 at 07:03:55 UTC from IEEE Xplore.  Restrictions apply. 
+
+=== PAGE 2 ===
+auction protocol without the participation of a third party
+based on blockchain and concurrent signature. By using
+the fuzziness of concurrent signature, the identity privacy
+of bidders is protected. Li et al.[8] introduced a sealed
+bidding auction scheme based on blockchain smart
+contract technology, which constructs an auction
+environment without third party through blockchain.
+In this paper, a sealed auction scheme based on
+blockchain and secure multi-party computing is proposed
+to overcome the shortcomings of the current auction
+scheme, such as the disclosure of identity information, the
+auction house may tamper with the winning price and so
+on. Bidders can sort the secret bid price through secure
+multi-party calculation. Combined with the idea of secure
+deposit on the blockchain, bidders are constrained to
+commit malicious acts to ensure that the winning bid price
+can not be tampered with, but also ensure the fairness of
+the auction.
+II. P RELIMINARIES
+A. Overviewofblockchain
+The concept of blockchain originated from an article
+“Bitcoin: A Peer-to-Peer E-cash System” published by
+Nakamoto in 2008 [9]. In essence, it is a decentralized
+distributed database, which adopts P2P communication
+mode, and has the characteristics of openness and non
+tampering. Due to its unique distributed characteristics,
+blockchain technology overcomes the dependence on
+servers and can be successfully applied to other industries
+except cryptocurrency and finance, such as medical
+treatment, intelligent transportation, microgrid, supply
+chain management, etc.
+Bitcoin is the first successful application of blockchain
+technology. After bitcoin, other cryptocurrencies based on
+blockchain have been proposed, such as zerocoin and
+monero. The workflow of bitcoin is shown in Fig. 1.
+Fig. 1. Bitcoin workflow.
+B. Securemulti-partycomputation
+The concept of secure multi-party computing was first
+proposed by Professor Yao Qizhi in 1982, and a secure
+two-party comparison protocol was proposed to solve the
+millionaire problem. A simple generalization of the
+millionaires problem is that multiple data are sorted by
+size without disclosing any information, which is
+obviously of great practical significance. In electronic
+auction, every bidder is not willing to disclose his bid
+price, but he needs to know the bidder with the largest bid
+price in this round of auction. The mathematical model of
+this problem is actually a generalization of the millionaire
+problem. In reference[10], Tang et al. constructed a secure
+multi-party sorting protocol for this mathematical model.
+By running the protocol, we can get the correct sorting of
+n secret data.
+Initialization phase: Suppose the protocol has
+n
+participants, nP P P,..., ,2 1 , each participant iP has an
+public identity ix , and a secret number Q si ,
+n i,..., 2 , 1 . There is a secret channel between any two
+participants, and each participant has a broadcast channel.
+Input phase:For n i,..., 2 , 1 each iP randomly
+and independently selects 1 2t t-degree polynomials to
+share
+1 2 2 2
+, ,..., ,
+t
+i
+t
+i i is s s sin the rational number field,
+t
+t iii
+t
+ii
+t
+t ii i ii
+t
+t ii i ii
+x a x a x a s x f
+x a x a x a s x f
+x a x a x a s x f
+tttt 1 21 21 21 2
+2222
+1111
+...) (
+        
+, ...) (
+, ...) (
+2
+21
+1 2
+2
+21
+2
+2
+2 1
+
+    
+    
+    
+
+
+(1)
+Then iP computes ) (  ,...,  ) ( ,  ) (
+1 221 j i j i j ix f x f x f
+t
+and
+sends it to jP . In addition, the participant also generates a
+random number Q ri , and randomly picks a t-degree
+polynomial ) (x ri in the rational number field, i.e., where
+(2). Finally, ) (j ix r, is computed and send ) (j ix rto jP ,
+for all n j,..., 2 , 1 .
+t
+iti i ii x a x a x a r x r    ...) ( 2
+2 1 (2)
+Calculation phase:
+1) All participants agree to choose 1 2t random
+polynomials from ) ( ),..., ( ), (2 1 x r x r x rn . let the 1 2t
+random polynomials be ) ( ,..., ) ( , ) (1 22 1 x r x r x rt , which
+correspond to participants 1 t 2 2 1,..., , P P P, respectively.
+Each participant jP calculates ) (j i ix g , where (3).
+) ( ) ( ... ) ( ) ( ) (
+1 21 1 21 j i j tj i jj i x f x r x f x r x g
+t  (3)
+408
+Authorized licensed use limited to: Indira Gandhi Delhi Technical University for Women. Downloaded on November 20,2025 at 07:03:55 UTC from IEEE Xplore.  Restrictions apply. 
+
+=== PAGE 3 ===
+Each jP in 1 2 2 1,..., , tP P Prandomly chooses n t-
+degree polynomials ) (  ,..., ) ( , ) (21 x h x h x hjnj j , which
+are used to share ) (  ,..., ) ( , ) (21 j n j j j j jx g x g x g  ,
+respectively, with ) ( ) 0 (j i jji x g h , where n i 1 .
+Then jP computes ) ( ),..., ( ), (21 k jnk j k j x h x h x h
+and sends them tokP as shares, where n k 1 .
+Output phase:For each jP , compute (6) and output,
+where n j,..., 2 , 1 .
+  
+
+
+
+
+1 2
+1
+1 2
+111 ) (  ,...,  ) () ,..., (
+t
+i
+t
+i j inj ijnj j x hx hy y y (6)
+Implementation of sorting:Suppose each jP has an
+output jy ) 1 (n j . Using the Lagrange interpolation
+formula, an arbitrary 1t participants can jointly
+reconstruct (7), n i 1 , and then broadcast ) , (i is P at
+the same time. Therefore, anyone can use ) , (i is P , to
+obtain the value sequence ns s s,..., ,2 1 .
+1 2
+12
+2
+2 1 ...
+
+   
+t
+i ti i i s r s r s r s(7)
+So far, the protocol is over. Through the analysis of
+the correctness and confidentiality of the protocol, it is
+proved that the protocol can get the correct order of data,
+and even if the participants have unlimited computing
+power, the confidentiality of the protocol still holds.
+C. Ringsignature
+In 2001, Rivest proposed the concept of ring signature
+for the first time in an article entitled “How to Leak a
+Secret”[11], and presented an RSA version of ring
+signature scheme. The signature scheme consists of the
+following algorithms:
+1) Sign(): A probabilistic algorithm generates a
+signature ) ,..., , , , (1 ri x x c L m for message m after
+inputting message m , a series of public keys
+} ,..., , {2 1 ry y y L and a private key sS of ring
+members in the group.
+2) Verify(): A deterministic algorithm, after inputting
+) , (m , outputs true if is the ring signature ofm;
+otherwise, outputs false.
+III. B IDDING SCHEME
+This section describes the basic process of the auction
+scheme. Blockchain secure deposit is used to restrict the
+bidders’ behavior and force them to disclose the bid price
+within a specified time, otherwise they will face the
+penalty of losing deposit.
+A. BiddingProcess
+The auction scheme is divided into auction preparation
+stage, bidding stage, bid opening stage and auction
+completion stage. The following auction scheme is given.
+As shown in Fig. 2.
+Fig. 2. Auction scheme.
+All bidders under the chain through secure multi-party
+calculation, jointly calculate the size of the price order,
+select the winner of the highest bid price, the identity of
+the successful bidder exists in the form of ) (idU H. At
+the end of bidding, the seller confirms the final price by
+opening the encrypted information on the chain. When the
+successful bidder and the winning price are determined,
+the successful bidder needs to provide
+idU and r for all
+participants to verify. The overall auction process is
+shown in Fig. 3.
+Fig. 3. Overall auction process.
+409
+Authorized licensed use limited to: Indira Gandhi Delhi Technical University for Women. Downloaded on November 20,2025 at 07:03:55 UTC from IEEE Xplore.  Restrictions apply. 
+
+=== PAGE 4 ===
+B. Symboldescription
+TABLE I. SYMBOL DESCRIPTION.
+Mark Meaning
+Commit(in: sb
+T ) bs uses sb
+T transaction as input to
+form Committransaction
+sbSig ([Commit]) bs uses private key to sign [Commit]
+[Commit] All contents except input script in
+Committransaction
+in-script:
+sbSig ([Commit]) Input script parameter information
+out-script(body, σ) Output script parameter information
+sbVer (body, σ)
+Use the public key ofbs to verify
+whether the digital signature σ is
+correct
+val: dBTC The amount of the transaction isd
+BTC
+tlock: t
+The transaction is locked within time
+t, and can only be unlocked after
+time t
+C. Auctionpreparationstage
+Before the auction starts, the auction participants carry
+out the necessary initialization work, which is carried out
+on the blockchain. The seller publishes the detailed
+information of the auctioned goods, auction rules and
+deadline, etc. on the chain. Bidders are required to register
+with Registration Center, and the RC issues identity ID
+and system security parameters for bidders. All parties
+publish public key and bitcoin address to facilitate
+signature, verification of information and bitcoin transfer.
+There are n bidders, nb b b,..., ,2 1 respectively. The
+corresponding public-private key pair is
+ ) , (  ,...,  ) , ( ,  ) , (2 21 1 n nSK PKSK PK SK PK . The seller
+is represented byP, and its corresponding public-private
+key pair is ) , (A ASK PK.
+D. Biddingstage
+After the seller announces the start of the auction, the
+bidder starts to bid. Suppose that biddersb wants to bid at
+the price of sm . The auction scheme is as follows:
+Step1: Bidder sb selects the bid price sm and takes
+the hash value as the symmetric key skey , where
+) (ss m H key .
+Step2: Pick a random value:sb pick a random value
+sv on *} 1  , 0 {.
+Step3: Select 1n random values: sb selects the
+random value ix on *} 1  , 0 {for the group member
+ib ) , 1 (s i n i  , and calculates ) (i i ix g y .
+Step4: sb to calculate the equation (8). The equation
+has only one solutionsy , which can be calculated.
+s nv key v y y y C
+s s
+) ,..., , (2 1 , (8)
+Step5: According to the trapdoor replacement ofsb ,
+) (
+1
+s s sy g x
+
+ is calculated.
+Step6: sb calculates the hash value ) || || (s s idr m U H
+of its bid commitment.
+Step7: The bidder sb submits the bidding message to
+the sellerP in the form of (9).
+ ns s ids n x x x r m U H v PK PK PK,..., ,  ); || || (  ;  ; ,..., ,2 12 1 (9)
+After receiving the bidding message, the seller signs
+the message and sends the signature to the bidder as a
+receipt. Bidders submit their own bid triplet (10) ,
+  ), || || ( ), (j j j jj v r m ID H m H(10)
+where jv is convenient for sellers to verify, that is,
+they can correspond to the previous received bid messages
+one by one. At the same time, all bidders start to
+implement the secure multi-party sorting protocol with
+anonymous identity ) (idU H.
+E. Bidopeningstage
+At this stage, all bidders pay a deposit on the
+blockchain and disclose their encryption bid price within a
+certain period of time, otherwise the deposit belongs to the
+seller [12].
+Still take the bidder sb as an example, the process is
+shown in Fig. 4.
+Fig. 4. Price opening.
+410
+Authorized licensed use limited to: Indira Gandhi Delhi Technical University for Women. Downloaded on November 20,2025 at 07:03:55 UTC from IEEE Xplore.  Restrictions apply. 
+
+=== PAGE 5 ===
+Pre-condition:
+Step1: The bidder sb and seller P have their own
+bitcoin key ) , (s ssk pkand ) , (A Ask pkrespectively,
+exchange their own public key and keep the private key.
+Step2: The real price of sb is k . After using the
+seller’s public key encryption, it is*k , and set (11).
+) (*k H h
+sb  (11)
+Step3: sb specifies a transaction sb
+T with a value of
+BTC  d as the deposit.
+Commit phase:
+Step1: sb uses sb
+T as input to create a Commit
+transaction.
+Step2: sb creates a sbFuse transaction with a time
+lock and sends his signature to the seller together with the
+sbFuse transaction.
+Step3: sb signs the Commit transaction and sends
+the signature to the seller.
+Step4: Seller P verifies the signature of biddersb . If
+the verification is successful, the private keyAsk is used
+to sign theCommit transaction and broadcast the whole
+network.
+Step5: Both sides wait for theCommit transaction to
+be written into the blockchain.
+Step6: IfCommit transaction does not appear on the
+blockchain within the specified time, sb immediately
+redeems transaction sb
+T and exits the protocol.
+Open phase:
+Step7: The bidder sb broadcast sb
+Open transaction
+and disclose the encrypted price*k .
+Step8: If the sb
+Open transaction does not appear on
+the blockchain within t time, the seller P broadcast
+sbFuse transaction gets the BTC  d deposit designated
+by the bidder.
+F. AuctionCompletionStage
+After receiving the encrypted price *k , seller P
+decrypts it with its private key to get the real pricek, and
+then verifies it in the next stage according to the auction
+rules.
+Step1: The seller compares all price sizes to get the
+maximum price ik .
+Step2: According to the trapdoor replacement, the
+corresponding ) (i i ix g y of ix is calculated.
+Step3: Find the corresponding bid triplet
+ i i i idi v r m U H m H), || || ( ), (through iv in the bid
+message, calculate the hash value of the bid priceik , as is
+shown in ) (ii k H key , and verify whether
+i skey key is true.
+Step4: Test whether the values of ny y y,... ,2 1 satisfy
+the equation of ring equation (12). If the equation is true,
+the identity of the bidder is proved to be legal. Otherwise,
+the seller judges that the bidder's identity is illegal and
+does not belong to the ring signature group and excludes it.
+i nv key v y y y C
+i i
+) ,..., , (2 1 , (12)
+After the bidders execute the secure multi-party
+sorting protocol, each party can know the ranking order of
+the bid price, but not the further information (the real bid
+price). Then the winner is selected according to the
+auction rules, and the winner provides his ownidU for all
+participants to verify, that is, true U Hid ) ( .The seller
+publishes the signature message of the successful bidder
+on the blockchain, bid commitment ) || || (r m U Hid , bid
+triplet  v r m U H m Hid ), || || ( ), (, real bid price k and
+encrypted bid price *k . The successful bidder provides his
+own random valuer. Anyone can verify the identity of
+the successful bidder and the correctness of the winning
+price according to idU and r.
+IV. S ECURITY ANALYSIS
+A. Newprotocolsecurityanalysis
+In this paper, a new sealed electronic auction scheme
+is designed by combining secure multiparty computation,
+ring signature and deposit on blockchain.
+Correctness: The bidder selects the successful bidder
+by implementing the secure multi-party sorting protocol,
+and only when the bidder honestly publishes his
+encryption bid price on the blockchain, the deposit can be
+redeemed, that is, releasing the correct *k to make the
+equation h k H) (* hold. Then the seller uses the private
+key to decrypt the real pricek , and selects the winner
+according to the auction rules.
+Fairness: Users on the blockchain have equal status.
+Due to the openness and transparency of data, all users get
+the same information, and there is no case of who has
+privileges. If the bidder is honest, the bidding message can
+411
+Authorized licensed use limited to: Indira Gandhi Delhi Technical University for Women. Downloaded on November 20,2025 at 07:03:55 UTC from IEEE Xplore.  Restrictions apply. 
+
+=== PAGE 6 ===
+be submitted successfully under the chain, and the
+encrypted bid price will be made public within the
+specified time on the chain, so that the auction can
+proceed smoothly.
+Anonymity: In the bidding stage, because of the
+anonymity of the ring signature itself, even the seller can
+not know the specific identity of the bidder. By verifying
+whether the user’s identity is legal, it can determine
+whether the bidder belongs to the group.
+Secrecy of bidding price:In the bidding stage under
+the chain, the unidirectionality of hash function makes it
+impossible for anyone to restore the real bid price even if
+they get the bid message and bid triplet. In the open stage
+of the chain, the bidder releases the encryption price
+*k ,
+and only the seller can decrypt it with his private key.
+Undeniability: Due to the non tamperability of the
+blockchain, the successful bidder can not deny his bid
+price.
+Unforgeability: Only members in the ring can bid,
+and no one can forge the identity of members in the ring,
+which has certain exclusivity.
+Public verifiability: All participants can verify the
+identity and bid price of the successful bidder according to
+the signature message disclosed by the seller on the
+blockchain, the bid commitment ) || || (r m U Hid , the bid
+triplet  v r m U H m Hid ), || || ( ), (, the true bid price k ,
+the idU and random value r provided by the winning
+bidder.
+B. Schemecomparison
+F. Brandt combines the knowledge of matrix with
+distributed El Gamal public key cryptography constitution,
+and successfully cancels the third party organization, and
+applies secure multi-party computing to the electronic
+auction scheme. Xiao proposes an auction scheme based
+on hash chain, which uses double commitment to achieve
+non repudiation, but there are still third-party auction
+houses. In this paper, the combination of blockchain and
+secure multiparty computing, compared with F. Brand’s
+scheme and Xiao’s scheme, has higher security
+performance. The specific comparison is shown in Table 2.
+TABLE II. SCHEMECOMPARISON .
+F. Brandt’s
+scheme
+Xiao’s
+scheme
+The scheme
+of this paper
+No third party √ × √
+Open and
+transparent × √ √
+Price
+confidentiality √ × √
+Non repudiation √ √ √
+Computationally
+efficient × √ √
+Anti conspiracy
+attack × √ √
+V. C ONCLUSION
+In this paper we proposes a sealed auction scheme
+based on blockchain and secure multiparty computing.
+The idea of deposit on blockchain is used to restrict the
+behavior of bidders, and the extra cost of the third-party
+auction house is saved. Combined with secure multi-party
+computing and ring signature technology, the privacy of
+bidders is protected while the fairness of auction activities
+is ensured. Through the security analysis of the scheme,
+the scheme meets the basic security requirements of the
+electronic auction scheme, and achieves the correctness,
+fairness, anonymity, price confidentiality, non repudiation,
+non forgery and public verifiability of the successful
+bidder required by the sealed auction scheme.
+REFERENCES
+[1] M. Franklin, M. Reiter, “The Design and Implementation of a
+Secure Auction Service,” IEEE Transactions on Software
+Engineering, vol. 22, issue 5, pp. 302-312, 1996.
+[2] H. Kikuchi, M. Harkavy and D. Tyger, “Multi-round Anonymous
+Auction Protocols,” The First IEEE Workshop on Dependable and
+Real-time E-commerce Systems, Berlin, Germany, pp. 62-29, 12-
+14 June 1998.
+[3] J.X. Yang, Y.J. Li and Y.M. Wang, “New Electronic Auction
+Based on Hash Chain,” Computer Engineering, vol. 33, issue 19,
+pp. 99-100, 2007.
+[4] Z.B. Xiao, B. Yang and S.G. Li, “Security Analysis and
+Improvement of Electronic Auction Based on Hash Chain,”
+Computer Engineering, vol. 35, issue 8, pp. 164-165, 2009.
+[5] F. Brandt, “How to obtain full privacy in auctions,” International
+Journal of Information Security, vol. 5, issue 4, pp. 201-216, 2006.
+[6] W.J. Cheng, Y.Y. Dong and J.G. Han, “A Simple and Efficient
+Sealed-bid Electronic Auction Scheme,” Computer Engineering,
+vol. 40, issue 3, pp. 171-174, 2014.
+[7] Y. Peng, Y. Gao and J.X. Wu, “A Privacy Preserving Sealed-bid
+Auction Scheme Based on Blockchain,” Cyberspace Security, vol.
+9, issue 8, pp. 1-7, 2018.
+[8] B. Li, W.Y. Zhang, J.R. Wang, W. Zhao and H.F. Wang, “Sealed-
+bid auction scheme based on blockchain,” Journal of Computer
+Applications, vol. 41, issue 4, pp. 999-1004, 2020.
+[9] S. Nakamoto, “Bitcoin: A Peer-to-Peer Electronic Cash System,”
+2008
+[10] C.M. Tang, G.H. Shi and Z.A. Yao, “Secure multi-party
+computation protocol for sequencing problem,” Science China
+Information Sciences, vol. 54, issue 8, pp. 1654-1662, 2011.
+[11] R.L. Rivest, “How to Leak a Secret,” Advances in Cryptology-
+ASIACRYPT2001, Germany, Springer-Verlag Berlin Heidelberg,
+2001.
+[12] M. Andrychowicz, S. Dziembowski, D. Malinowski and L.
+Mazurek, “Fair Two-Party Computations via Bitcoin Deposits,”
+International Conference on Financial Cryptography and Data
+Security, Germany, Springer-Verlag Berlin Heidelberg, 2014.
+412
+Authorized licensed use limited to: Indira Gandhi Delhi Technical University for Women. Downloaded on November 20,2025 at 07:03:55 UTC from IEEE Xplore.  Restrictions apply. 

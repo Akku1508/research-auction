@@ -6,7 +6,7 @@ from .common import curve, random_scalar
 class PedersenCommitment:
     def __init__(self):
         self.g = curve.G
-        self.h = curve.scalar_mult(1337, self.g)
+        self.h = curve.hash_to_point(b"research-auction:pedersen:H")
 
     def commit(self, bid_value: int, randomness: int = None):
         r_i = randomness if randomness is not None else random_scalar()

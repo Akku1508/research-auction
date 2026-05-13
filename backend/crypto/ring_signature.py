@@ -14,7 +14,7 @@ class RingSignature:
         return sk, pk
 
     def H_p(self, p):
-        return curve.scalar_mult(curve.hash_to_scalar(point_to_bytes(p)), self.G)
+        return curve.hash_to_point(b"research-auction:ring:H_p:" + point_to_bytes(p))
 
     def generate_key_image(self, sk, pk):
         return curve.scalar_mult(sk, self.H_p(pk))

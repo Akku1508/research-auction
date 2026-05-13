@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: research-auction
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB_NAME
+        value: decentralized_auction
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: MONGO_TIMEOUT_MS
+        value: "10000"

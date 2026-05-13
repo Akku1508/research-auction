@@ -3,30 +3,120 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DAPV Decentralized Auction</title>
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem('research-auction-theme');
+        theme = theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      } catch (error) {
+        document.documentElement.dataset.theme = 'light';
+        document.documentElement.style.colorScheme = 'light';
+      }
+    })();
+  </script>
+  <title>{% block title %}Research Auction{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
-<body>
-  <nav class="nav">
-    <div><strong>DAPV Auction</strong></div>
-    <div>
-      {% if session.get('user_id') %}
-      <a href="{{ url_for('dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('auctions') }}">Auctions</a>
-      <a href="{{ url_for('logout') }}">Logout</a>
-      {% endif %}
-    </div>
-  </nav>
+<body class="{% if session.get('user_id') %}app-page{% else %}auth-page{% endif %}">
+  <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="Switch to dark theme">
+    <span class="theme-toggle-track" aria-hidden="true">
+      <span class="theme-toggle-thumb"></span>
+    </span>
+    <span class="theme-toggle-copy">
+      <strong>Theme</strong>
+      <span data-theme-toggle-label>Light</span>
+    </span>
+  </button>
 
-  <main class="container">
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-      <div class="flash-wrap">
-        {% for message in messages %}<div class="flash">{{ message }}</div>{% endfor %}
+  {% if session.get('user_id') %}
+  <div class="app-shell">
+    <aside class="app-sidebar glass">
+      <div class="brand-block">
+        <div class="brand-mark">
+          {% if layout_user and layout_user.full_name %}
+            {{ layout_user.full_name[:1]|upper }}
+          {% elif layout_user and layout_user.username %}
+            {{ layout_user.username[:1]|upper }}
+          {% else %}
+            U
+          {% endif %}
+        </div>
+        <div class="brand-copy">
+          <strong>
+            {% if layout_user and layout_user.full_name %}
+              {{ layout_user.full_name }}
+            {% elif layout_user and layout_user.username %}
+              {{ layout_user.username }}
+            {% else %}
+              User
+            {% endif %}
+          </strong>
+          <span>{{ session.get('role', 'user')|title }}</span>
+        </div>
       </div>
+
+      <nav class="side-nav">
+        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+          Dashboard
+        </a>
+        <a class="nav-link {% if request.endpoint in ['auctions', 'auctioneer_panel', 'bidder_panel'] %}active{% endif %}" href="{{ url_for('auctions') }}">
+          Auctions
+        </a>
+        <a class="nav-link" href="{{ url_for('logout') }}">
+          Logout
+        </a>
+      </nav>
+
+    </aside>
+
+    <section class="content-shell">
+      <header class="page-head glass">
+        <div>
+          <p class="eyebrow">Research Auction</p>
+          <h1>{% block page_title %}Control Center{% endblock %}</h1>
+          <p class="page-copy">{% block page_intro %}{% endblock %}</p>
+        </div>
+
+        <div class="user-chip">
+          <span class="status-dot"></span>
+          <div>
+            <strong>{{ session.get('role', 'user')|title }}</strong>
+            <span>Live session</span>
+          </div>
+        </div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+          <div class="flash-wrap">
+            {% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <main class="page-content">
+  {% else %}
+  <main class="auth-main">
+    {% with messages = get_flashed_messages(with_categories=True) %}
+      {% if messages %}
+        <div class="flash-wrap auth-flash-wrap">
+          {% for category, message in messages %}<div class="flash flash-{{ category }}">{{ message }}</div>{% endfor %}
+        </div>
       {% endif %}
     {% endwith %}
+  {% endif %}
+
     {% block content %}{% endblock %}
+
   </main>
+
+  {% if session.get('user_id') %}
+    </section>
+  </div>
+  {% endif %}
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

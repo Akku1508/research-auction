@@ -1,22 +1,120 @@
 {% extends 'base.html' %}
+{% block title %}Dashboard | Research Auction{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_intro %}{% endblock %}
 {% block content %}
-<div class="grid two">
-  <div class="card">
-    <h3>👤 Profile</h3>
-    <p><strong>Name:</strong> {{ user.full_name }}</p>
-    <p><strong>Username:</strong> {{ user.username }}</p>
-    <p><strong>Email:</strong> {{ user.email }}</p>
-    <p><strong>Role:</strong> {{ user.role }}</p>
-  </div>
-  <div class="card">
-    <h3>📜 Past Activity / Auctions Participated</h3>
+{% set registration_count = auctions|selectattr('status', 'equalto', 'REGISTRATION')|list|length %}
+{% set bidding_open_count = auctions|selectattr('status', 'equalto', 'BIDDING_OPEN')|list|length %}
+{% set verified_count = auctions|selectattr('status', 'equalto', 'VERIFIED')|list|length %}
+{% set completed_count = auctions|selectattr('status', 'equalto', 'COMPLETED')|list|length %}
+
+<section class="overview-grid">
+  <article class="card profile-hero glass">
+    <div class="profile-identity">
+      <div class="identity-badge">{{ user.full_name[:1]|upper }}</div>
+      <div>
+        <p class="eyebrow">Account</p>
+        <h2>{{ user.full_name }}</h2>
+        <p class="muted">{{ user.role|title }}</p>
+      </div>
+    </div>
+
+    <div class="profile-meta-grid">
+      <div class="profile-meta">
+        <span>Email</span>
+        <strong>{{ user.email }}</strong>
+      </div>
+      <div class="profile-meta">
+        <span>Phone</span>
+        <strong>{{ user.phone }}</strong>
+      </div>
+      <div class="profile-meta">
+        <span>Role</span>
+        <strong>{{ user.role|title }}</strong>
+      </div>
+      <div class="profile-meta">
+        <span>Username</span>
+        <strong>@{{ user.username }}</strong>
+      </div>
+    </div>
+  </article>
+
+  <article class="card spotlight-card glass">
+    <p class="eyebrow">Quick Access</p>
+    <h3>{% if user.role == 'auctioneer' %}Auctioneer Actions{% else %}Auction Access{% endif %}</h3>
+    <div class="inline-actions quick-actions">
+      <a class="btn-link" href="{{ url_for('auctions') }}">Open Auctions</a>
+    </div>
+    <div class="mini-info-grid quick-summary-grid">
+      <div class="mini-info-card">
+        <span>{% if user.role == 'auctioneer' %}Opened Auctions{% else %}Joined Auctions{% endif %}</span>
+        <strong>{{ auctions|length }}</strong>
+      </div>
+      <div class="mini-info-card">
+        <span>Role</span>
+        <strong>{{ user.role|title }}</strong>
+      </div>
+      <div class="mini-info-card">
+        <span>All Auctions</span>
+        <strong>{{ auctions|length }}</strong>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="stat-grid">
+  <article class="card stat-card featured status-total">
+    <span class="stat-kicker">Total Auctions</span>
+    <strong class="stat-value">{{ auctions|length }}</strong>
+  </article>
+  <article class="card stat-card status-registration-card">
+    <span class="stat-kicker">Registration</span>
+    <strong class="stat-value">{{ registration_count }}</strong>
+  </article>
+  <article class="card stat-card status-open-card">
+    <span class="stat-kicker">BIDDING OPEN</span>
+    <strong class="stat-value">{{ bidding_open_count }}</strong>
+  </article>
+  <article class="card stat-card status-final-card">
+    <span class="stat-kicker">Verified / Completed</span>
+    <strong class="stat-value">{{ verified_count + completed_count }}</strong>
+  </article>
+</section>
+
+<section class="dashboard-layout">
+  <article class="card glass">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Auctions</p>
+        <h3>{% if user.role == 'auctioneer' %}Opened Auctions{% else %}Joined Auctions{% endif %}</h3>
+      </div>
+      <a class="btn-link" href="{{ url_for('auctions') }}">View All Auctions</a>
+    </div>
+
     {% if auctions %}
-      <ul>
-      {% for a in auctions %}<li>{{ a.title }} - {{ a.status }}</li>{% endfor %}
-      </ul>
+    <ul class="activity-list">
+      {% for a in auctions %}
+      <li class="activity-item">
+        <div class="activity-item-top">
+          <strong>{{ a.title }}</strong>
+          <div class="activity-meta">
+            <span class="type-pill {{ a.auction_type }}">{{ a.auction_type_label }} auction</span>
+            <span class="badge status-{{ a.status|lower }}">{{ a.status.replace('_', ' ').upper() }}</span>
+          </div>
+        </div>
+        <div class="activity-line">
+          <span>Window</span>
+          <strong>{{ a.start_date_display or a.start_date }} to {{ a.end_date_display or a.end_date }}</strong>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
     {% else %}
-      <p>No activity yet.</p>
+    <div class="empty-state">
+      <h4>No activity yet</h4>
+      <p class="muted">Create or join an auction to see it here.</p>
+    </div>
     {% endif %}
-  </div>
-</div>
+  </article>
+</section>
 {% endblock %}

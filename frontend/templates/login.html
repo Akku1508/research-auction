@@ -1,14 +1,76 @@
 {% extends 'base.html' %}
+{% block title %}Login | Research Auction{% endblock %}
 {% block content %}
-<div class="card narrow">
-  <h2>Login</h2>
-  <form method="post">
-    <label>Username</label>
-    <input name="username" required />
-    <label>Password</label>
-    <input name="password" type="password" required />
-    <button type="submit">Login</button>
-  </form>
-  <p>New user? <a href="{{ url_for('signup') }}">Signup here</a></p>
-</div>
+<section class="auth-layout">
+  <section class="auth-hero glass">
+    <div class="auth-hero-copy">
+      <h1>Privacy Preserving Online Auction Bidding System</h1>
+      <p>Anonymous participation for secure, verifiable online sealed bidding.</p>
+    </div>
+
+    <div class="auth-visual" aria-hidden="true">
+      <div class="auction-scene">
+        <div class="scene-shadow"></div>
+        <div class="auction-platform"></div>
+        <div class="auction-column column-left"></div>
+        <div class="auction-column column-center"></div>
+        <div class="auction-column column-right"></div>
+        <div class="auction-screen">
+          <span class="auction-screen-kicker">LIVE AUCTION</span>
+          <strong>Hidden Bids</strong>
+          <span class="auction-screen-line line-accent"></span>
+          <span class="auction-screen-line line-soft"></span>
+        </div>
+        <div class="auction-gavel">
+          <span class="gavel-head"></span>
+          <span class="gavel-band"></span>
+          <span class="gavel-handle"></span>
+        </div>
+        <div class="auction-scene-card bid-card">
+          <span>Bid</span>
+          <strong>Encrypted</strong>
+        </div>
+        <div class="auction-scene-card proof-card">
+          <span>Proof</span>
+          <strong>Verified</strong>
+        </div>
+        <div class="auction-orb orb-indigo"></div>
+        <div class="auction-orb orb-orange"></div>
+        <div class="auction-orb orb-green"></div>
+      </div>
+    </div>
+
+    <div class="auth-feature-list auth-feature-grid">
+      <div class="auth-feature auth-feature-compact">
+        <strong>Anonymous bidding</strong>
+      </div>
+      <div class="auth-feature auth-feature-compact">
+        <strong>Bid integrity</strong>
+      </div>
+      <div class="auth-feature auth-feature-compact">
+        <strong>Winner verification</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="auth-panel glass">
+    <div class="auth-panel-head">
+      <p class="eyebrow">Account Access</p>
+      <h2>Welcome back</h2>
+      <p class="muted">Use your existing credentials to continue to the dashboard.</p>
+    </div>
+
+    <form method="post" class="stack-actions">
+      <label>Username
+        <input name="username" required />
+      </label>
+      <label>Password
+        <input name="password" type="password" required />
+      </label>
+      <button type="submit">Login</button>
+    </form>
+
+    <p class="auth-switch muted">New user? <a href="{{ url_for('signup') }}">Create account</a></p>
+  </section>
+</section>
 {% endblock %}

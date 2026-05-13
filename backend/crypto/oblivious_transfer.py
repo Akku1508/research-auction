@@ -58,26 +58,25 @@ class NaorPinkasTreeOT:
             seeds[2 * i] = self._prg(seeds[i], 0)
             seeds[2 * i + 1] = self._prg(seeds[i], 1)
 
-        ciphertexts = []
-        for leaf in range(2**k, 2 ** (k + 1)):
-            path = []
-            idx = leaf
-            while idx >= 1:
-                path.append(seeds[idx])
-                idx //= 2
-            L_j = hashlib.sha256(b"".join(reversed(path))).digest()
-            m_j = msgs[leaf - 2**k]
-            if not m_j:
-                ciphertexts.append(b"")
-            else:
-                ks = hashlib.sha256(L_j).digest()
-                ciphertexts.append(xor_bytes(m_j, ks[: len(m_j)]))
-
         level_pairs = []
         for level in range(1, k + 1):
             left = 2**level
             right = left + 1
             level_pairs.append((hashlib.sha256(seeds[left]).digest(), hashlib.sha256(seeds[right]).digest()))
+
+        leaf_keys = []
+        for leaf_index in range(n_leaves):
+            bits = [(leaf_index >> (k - 1 - i)) & 1 for i in range(k)]
+            chosen_keys = [level_pairs[level][bits[level]] for level in range(k)]
+            leaf_keys.append(hashlib.sha256(b"".join(chosen_keys)).digest())
+
+        ciphertexts = []
+        for m_j, L_j in zip(msgs, leaf_keys):
+            if not m_j:
+                ciphertexts.append(b"")
+                continue
+            ks = hashlib.sha256(L_j).digest()
+            ciphertexts.append(xor_bytes(m_j, ks[: len(m_j)]))
 
         return {"original_n": n0, "n": n_leaves, "k": k, "ciphertexts": ciphertexts, "level_pairs": level_pairs}
 

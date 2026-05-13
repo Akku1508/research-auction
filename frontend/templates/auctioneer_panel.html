@@ -1,0 +1,385 @@
+{% extends 'base.html' %}
+{% block title %}Auctioneer Panel | Research Auction{% endblock %}
+{% block page_title %}Auctioneer Panel{% endblock %}
+{% block page_intro %}{% endblock %}
+{% block content %}
+{% set written_assets = auction.written_assets or [] %}
+{% set media_assets = auction.media_assets or [] %}
+
+<section class="card hero-band glass">
+  <div class="hero-band-top">
+    <div>
+      <p class="eyebrow">Auction control</p>
+      <h2>{{ auction.title }}</h2>
+      <p class="muted">{{ auction.winner_rule_label }}. Follow: registration, bidding, OT, verify, winner.</p>
+    </div>
+    <div class="activity-meta">
+      <span class="type-pill {{ auction.auction_type }}">{{ auction.auction_type_label }} auction</span>
+      <span class="badge status-{{ auction.status|lower }}">{{ auction.status.replace('_', ' ').upper() }}</span>
+    </div>
+  </div>
+
+  <div class="stat-grid compact-stat-grid">
+    <article class="card stat-card">
+      <span class="stat-kicker">Required k</span>
+      <strong class="stat-value">{{ auction.required_auctioneers }}</strong>
+      <span class="stat-note">Threshold auctioneer count.</span>
+    </article>
+    <article class="card stat-card">
+      <span class="stat-kicker">Auctioneers</span>
+      <strong class="stat-value">{{ auction.auctioneers|length }}</strong>
+      <span class="stat-note">All auctioneer accounts available for this auction.</span>
+    </article>
+    <article class="card stat-card">
+      <span class="stat-kicker">Submitted</span>
+      <strong class="stat-value">{{ bid_count }}</strong>
+      <span class="stat-note">Commitments received so far.</span>
+    </article>
+    <article class="card stat-card">
+      <span class="stat-kicker">Verified</span>
+      <strong class="stat-value">{{ verified_count }}</strong>
+      <span class="stat-note">Reveals validated successfully.</span>
+    </article>
+  </div>
+</section>
+
+<section class="panel-grid">
+  <article class="card glass">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Auction summary</p>
+        <h3>Scope and supporting material</h3>
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-card">
+        <span>{{ auction.subject_heading }}</span>
+        <strong>{{ auction.subject_description or 'Not provided.' }}</strong>
+      </div>
+      <div class="detail-card">
+        <span>{{ auction.condition_heading }}</span>
+        <strong>{{ auction.condition_notes or 'Not provided.' }}</strong>
+      </div>
+      <div class="detail-card">
+        <span>Bid Range</span>
+        <strong>{{ auction.bid_floor }} to {{ auction.bid_ceiling }}</strong>
+      </div>
+      <div class="detail-card">
+        <span>Window</span>
+        <strong>{{ auction.start_date_display or auction.start_date }} to {{ auction.end_date_display or auction.end_date }}</strong>
+      </div>
+      {% if auction.auction_type == 'forward' %}
+      <div class="detail-card">
+        <span>Starting Bid</span>
+        <strong>{{ auction.starting_bid_value }}</strong>
+      </div>
+      {% else %}
+      <div class="detail-card">
+        <span>Desired Quality / Source</span>
+        <strong>{{ auction.desired_quality or 'Not provided.' }} | {{ auction.source_location or 'Not provided.' }}</strong>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="asset-blocks">
+      <div>
+        <h4>Written files</h4>
+        {% if written_assets %}
+        <ul class="attachment-list">
+          {% for asset in written_assets %}
+          <li><a href="{{ url_for('static', filename=asset.path) }}" target="_blank" rel="noreferrer">{{ asset.original_name }}</a></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No written files uploaded yet.</p>
+        {% endif %}
+      </div>
+
+      <div>
+        <h4>Media files</h4>
+        {% if media_assets %}
+        <div class="asset-grid">
+          {% for asset in media_assets %}
+          {% set asset_url = url_for('static', filename=asset.path) %}
+          <article class="asset-card">
+            {% if asset.mimetype and asset.mimetype.startswith('image/') %}
+            <img src="{{ asset_url }}" alt="{{ asset.original_name }}" class="asset-preview" />
+            {% elif asset.mimetype and asset.mimetype.startswith('video/') %}
+            <video controls class="asset-preview">
+              <source src="{{ asset_url }}" type="{{ asset.mimetype }}" />
+            </video>
+            {% elif asset.mimetype and asset.mimetype.startswith('audio/') %}
+            <audio controls class="asset-audio">
+              <source src="{{ asset_url }}" type="{{ asset.mimetype }}" />
+            </audio>
+            {% else %}
+            <div class="asset-placeholder">Media file</div>
+            {% endif %}
+            <h6>{{ asset.original_name }}</h6>
+            <a class="btn-link" href="{{ asset_url }}" target="_blank" rel="noreferrer">Open file</a>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No media files uploaded yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+
+  <article class="card glass">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Stage actions</p>
+        <h3>Protocol controls</h3>
+      </div>
+    </div>
+    <p class="muted">Run actions in order. Missing conditions appear after action click.</p>
+    <div class="action-grid">
+      <form action="{{ url_for('start_auction', auction_id=auction._id) }}" method="post"><button>Start Auction</button></form>
+      <form action="{{ url_for('close_bidding', auction_id=auction._id) }}" method="post"><button>Close Bidding (Manual)</button></form>
+      <form action="{{ url_for('prepare_ot', auction_id=auction._id) }}" method="post"><button>Prepare OT Stage</button></form>
+      <form action="{{ url_for('verify_revealed_bids', auction_id=auction._id) }}" method="post"><button>Verify Revealed Bids</button></form>
+      <form action="{{ url_for('declare_winner', auction_id=auction._id) }}" method="post"><button>Declare Winner</button></form>
+    </div>
+
+    <div class="mini-info-grid">
+      <div class="mini-info-card">
+        <span>Revealed</span>
+        <strong>{{ revealed_count }}</strong>
+      </div>
+      <div class="mini-info-card">
+        <span>Valid</span>
+        <strong>{{ verified_count }}</strong>
+      </div>
+      <div class="mini-info-card">
+        <span>Invalid</span>
+        <strong>{{ invalid_count }}</strong>
+      </div>
+    </div>
+  </article>
+</section>
+
+{% set post_registration = auction.status in ['BIDDING_OPEN', 'BIDDING_CLOSED', 'OT_READY', 'VERIFIED', 'COMPLETED'] %}
+{% set post_bidding = auction.status in ['BIDDING_CLOSED', 'OT_READY', 'VERIFIED', 'COMPLETED'] %}
+{% set post_ot = auction.status in ['OT_READY', 'VERIFIED', 'COMPLETED'] %}
+{% set post_verify = auction.status in ['VERIFIED', 'COMPLETED'] %}
+<section class="card glass">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">Auction status</p>
+      <h3>Stage progress</h3>
+    </div>
+  </div>
+  <div class="phase-grid">
+    <div class="phase-row">
+      <div>
+        <strong>Phase 1: Registration</strong>
+        <p class="muted">Bidders registered: {{ auction.bidders|length }}</p>
+      </div>
+      <span class="phase-badge {{ 'phase-done' if post_registration else 'phase-live' }}">{{ 'DONE' if post_registration else 'LIVE' }}</span>
+    </div>
+    <div class="phase-row">
+      <div>
+        <strong>Phase 2: Bid Submission</strong>
+        <p class="muted">Bids submitted: {{ bid_count }}</p>
+      </div>
+      <span class="phase-badge {{ 'phase-done' if post_bidding else ('phase-live' if auction.status == 'BIDDING_OPEN' else 'phase-pending') }}">{{ 'DONE' if post_bidding else ('LIVE' if auction.status == 'BIDDING_OPEN' else 'PENDING') }}</span>
+    </div>
+    <div class="phase-row">
+      <div>
+        <strong>Phase 3: OT Setup</strong>
+        <p class="muted">OT prepared: {{ 'YES' if post_ot else 'NO' }}</p>
+      </div>
+      <span class="phase-badge {{ 'phase-done' if post_ot else 'phase-pending' }}">{{ 'DONE' if post_ot else 'PENDING' }}</span>
+    </div>
+    <div class="phase-row">
+      <div>
+        <strong>Phase 4: Reveal + Verification</strong>
+        <p class="muted">Revealed bids: {{ revealed_count }} | Valid: {{ verified_count }}</p>
+      </div>
+      <span class="phase-badge {{ 'phase-done' if post_verify else 'phase-pending' }}">{{ 'DONE' if post_verify else 'PENDING' }}</span>
+    </div>
+  </div>
+</section>
+
+<section class="card glass">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">Edit auction</p>
+      <h3>Update auction details</h3>
+    </div>
+  </div>
+
+  <form action="{{ url_for('edit_auction', auction_id=auction._id) }}" method="post" enctype="multipart/form-data" class="auction-form stack-actions" data-auction-form>
+    <div class="grid-form">
+      <label>Auction Type
+        <select name="auction_type" data-auction-type-select>
+          <option value="reverse" {% if auction.auction_type == 'reverse' %}selected{% endif %}>Reverse auction</option>
+          <option value="forward" {% if auction.auction_type == 'forward' %}selected{% endif %}>Forward auction</option>
+        </select>
+      </label>
+      <label>Title
+        <input name="title" value="{{ auction.title }}" required />
+      </label>
+      <label>Shamir Threshold (k)
+        <input name="required_auctioneers" type="number" min="2" value="{{ auction.required_auctioneers }}" required />
+      </label>
+      <label>Maximum Bid Value
+        <input name="maximum_allowed_bid" type="number" min="1" value="{{ auction.maximum_allowed_bid }}" required />
+      </label>
+      <label>Start Date/Time
+        <input name="start_date" type="datetime-local" value="{{ auction.start_date_input }}" required />
+      </label>
+      <label>End Date/Time
+        <input name="end_date" type="datetime-local" value="{{ auction.end_date_input }}" required />
+      </label>
+    </div>
+
+    <section class="stage-box auction-type-panel" data-auction-type-section="forward" {% if auction.auction_type != 'forward' %}hidden{% endif %}>
+      <h4>Forward auction details</h4>
+      <div class="grid-form">
+        <label>Starting Bid Value
+          <input name="starting_bid_value" type="number" min="0" value="{{ auction.starting_bid_value }}" required />
+        </label>
+        <label class="span-2">What is being sold?
+          <textarea name="subject_description" rows="3" required>{{ auction.subject_description }}</textarea>
+        </label>
+        <label class="span-2">Material condition notes
+          <textarea name="condition_notes" rows="4" required>{{ auction.condition_notes }}</textarea>
+        </label>
+        <label class="span-2">Written files
+          <input name="written_files" type="file" multiple accept=".pdf,.doc,.docx,.txt,.rtf,.md,.png,.jpg,.jpeg,.gif,.webp" />
+        </label>
+        <label class="span-2">Media files
+          <input name="media_files" type="file" multiple accept="image/*,video/*,audio/*" />
+        </label>
+      </div>
+    </section>
+
+    <section class="stage-box auction-type-panel" data-auction-type-section="reverse" {% if auction.auction_type != 'reverse' %}hidden{% endif %}>
+      <h4>Reverse auction details</h4>
+      <div class="grid-form">
+        <label class="span-2">What deal is being requested?
+          <textarea name="subject_description" rows="3" required>{{ auction.subject_description }}</textarea>
+        </label>
+        <label>Desired quality
+          <input name="desired_quality" value="{{ auction.desired_quality }}" required />
+        </label>
+        <label>Source / where to procure from
+          <input name="source_location" value="{{ auction.source_location }}" required />
+        </label>
+        <label class="span-2">Requirement notes
+          <textarea name="condition_notes" rows="4" required>{{ auction.condition_notes }}</textarea>
+        </label>
+        <label class="span-2">Written files
+          <input name="written_files" type="file" multiple accept=".pdf,.doc,.docx,.txt,.rtf,.md,.png,.jpg,.jpeg,.gif,.webp" />
+        </label>
+        <label class="span-2">Media files
+          <input name="media_files" type="file" multiple accept="image/*,video/*,audio/*" />
+        </label>
+      </div>
+    </section>
+
+    <p class="muted">Protocol logic unchanged.</p>
+    <button>Update Details</button>
+  </form>
+</section>
+
+<section class="panel-grid">
+  <article class="card glass">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Anonymous commitments</p>
+        <h3>Commitment references</h3>
+      </div>
+    </div>
+    {% if commitment_records %}
+    <ul class="activity-list">
+      {% for c in commitment_records %}
+      <li class="activity-item">
+        <div class="activity-line"><span>Bid entry</span><strong>Bid {{ loop.index }}</strong></div>
+        <div class="activity-line"><span>Commitment Ref</span><strong>CMT-{{ loop.index }}</strong></div>
+        {% set signer_ref = c.signing_public_key or 'NA' %}
+        <div class="activity-line"><span>Public Key Ref</span><strong>PK-{{ signer_ref[:10] }}...{{ signer_ref[-8:] }}</strong></div>
+        <div class="activity-line"><span>Signature</span><strong>Attached and checked at submit stage</strong></div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">No commitments submitted yet.</p>
+    {% endif %}
+  </article>
+
+  <article class="card glass">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Shamir shares</p>
+        <h3>Share distribution status</h3>
+      </div>
+    </div>
+    {% if auction.shares %}
+    <ul class="activity-list">
+      {% for s in auction.shares %}
+      <li class="activity-item">
+        <div class="activity-line"><span>Share</span><strong>SHARE-{{ loop.index }}</strong></div>
+        {% set auc_ref = s.auctioneer_id or 'NA' %}
+        <div class="activity-line"><span>Auctioneer Ref</span><strong>AUC-{{ auc_ref[-8:] }}</strong></div>
+        <div class="activity-line"><span>Status</span><strong>Stored</strong></div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">No stored shares yet. They will appear after winner declaration.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="card glass">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">Verification</p>
+      <h3>Revealed bids (anonymous)</h3>
+    </div>
+  </div>
+  {% set revealed_rows = verification_rows|selectattr('revealed_bid', 'ne', none)|list %}
+  {% if revealed_rows %}
+  <ul class="activity-list">
+    {% for row in revealed_rows %}
+    <li class="activity-item">
+      <div class="detail-grid">
+        <div class="detail-card">
+          <span>Bid</span>
+          <strong>Bid {{ loop.index }}</strong>
+        </div>
+        <div class="detail-card">
+          <span>Bid Value</span>
+          <strong>{{ row.revealed_bid }}</strong>
+        </div>
+      </div>
+      <div class="check-line">
+        <span>Commitment Verified: {{ 'YES' if row.commitment_valid else 'NO' }}</span>
+        <span>ZK Verified: {{ 'YES' if row.zk_valid else 'NO' }}</span>
+        <span>Key Proof Verified: {{ 'YES' if row.key_proof_valid else 'NO' }}</span>
+        <span>Overall Verified: {{ 'YES' if row.is_valid else 'NO' }}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No revealed bids yet. Click "Verify Revealed Bids" after bidders reveal values.</p>
+  {% endif %}
+</section>
+
+{% if auction.winner %}
+<section class="winner-box glass">
+  <p class="eyebrow">Winner declaration</p>
+  <h3>Auction winner revealed</h3>
+  {% set winner_ref = auction.winner.bidder_id or 'NA' %}
+  <p>Winner Ref: BID-{{ winner_ref[-8:] }}</p>
+  <p>Winning Bid: {{ auction.winner.bid }}</p>
+  <p>Verification: Completed</p>
+</section>
+{% endif %}
+{% endblock %}

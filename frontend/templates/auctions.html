@@ -1,48 +1,212 @@
 {% extends 'base.html' %}
+{% block title %}Auctions | Research Auction{% endblock %}
+{% block page_title %}Auctions{% endblock %}
+{% block page_intro %}{% endblock %}
 {% block content %}
-<h2>Auctions</h2>
-
-{% if role == 'auctioneer' %}
-<div class="card">
-  <h3>Create Auction</h3>
-  <form method="post" class="grid three">
-    <input name="title" placeholder="Title" required />
-    <input name="bidder_limit" type="number" min="1" placeholder="Bidder limit" required />
-    <input name="threshold_k" type="number" min="1" placeholder="k auctioneers" required />
-    <input name="time" placeholder="time (text)" />
-    <button type="submit">Create</button>
-  </form>
-</div>
-{% endif %}
-
-<div class="grid two">
-{% for a in auctions %}
-  <div class="card">
-    <h3>{{ a.title }}</h3>
-    <p>Status: <strong>{{ a.status }}</strong></p>
-    <p>Open/Closed: {{ 'Open' if a.status == 'OPEN' else 'Closed' }}</p>
-    <p>Auctioneers: {{ a.auctioneers|length }} | Bidders: {{ a.bidders|length }}</p>
-    <p>Threshold k: {{ a.threshold_k }}</p>
-
-    {% if role == 'bidder' %}
-      <form action="{{ url_for('register_bidder_to_auction', auction_id=a._id) }}" method="post"><button>Participate</button></form>
-      <form action="{{ url_for('submit_bid', auction_id=a._id) }}" method="post">
-        <input name="bid_value" type="number" min="1" placeholder="Bid value" required />
-        <button>Submit Bid (Commit + Ring Sig)</button>
-      </form>
-      <form action="{{ url_for('reveal_bid', auction_id=a._id) }}" method="post">
-        <input name="bid_value" type="number" min="1" placeholder="Reveal bid" required />
-        <input name="randomness" type="number" min="1" placeholder="Reveal randomness" required />
-        <button>Reveal + ZKP Verify</button>
-      </form>
-    {% endif %}
-
-    {% if role == 'auctioneer' %}
-      <form action="{{ url_for('join_auctioneer', auction_id=a._id) }}" method="post"><button>Join as Auctioneer</button></form>
-      <form action="{{ url_for('prepare_ot', auction_id=a._id) }}" method="post"><button>Share Secret Keys (OT)</button></form>
-      <form action="{{ url_for('declare_winner', auction_id=a._id) }}" method="post"><button>Distribute Secret Shares + Winner</button></form>
-    {% endif %}
+<section class="card hero-band glass">
+  <div class="hero-band-top">
+    <div>
+      <p class="eyebrow">Auctions</p>
+      <h2>All Auctions</h2>
+    </div>
+    <div class="hero-pill-grid">
+      <div class="hero-pill">
+        <span>Current Time</span>
+        <strong>{{ now.strftime("%Y-%m-%d %H:%M:%S %Z") }}</strong>
+      </div>
+      <div class="hero-pill">
+        <span>Role</span>
+        <strong>{{ role|title }}</strong>
+      </div>
+      <div class="hero-pill">
+        <span>Auctions</span>
+        <strong>{{ auctions|length }}</strong>
+      </div>
+    </div>
   </div>
-{% endfor %}
-</div>
+</section>
+
+<section class="auction-layout auction-layout-stacked {% if role != 'auctioneer' %}auction-layout-wide{% endif %}">
+  {% if role == 'auctioneer' %}
+  <section class="card create-panel create-panel-wide glass">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow create-panel-subtitle">Launch a new protocol flow</p>
+        <h2 class="create-panel-title">Create Auction</h2>
+      </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="auction-form stack-actions" data-auction-form>
+      <div class="grid-form">
+        <label>Auction Type
+          <select name="auction_type" data-auction-type-select>
+            <option value="reverse" selected>Reverse auction</option>
+            <option value="forward">Forward auction</option>
+          </select>
+        </label>
+        <label class="span-2">Title
+          <input name="title" placeholder="Auction title" required />
+        </label>
+        <label>Shamir Threshold (k)
+          <input name="required_auctioneers" type="number" min="2" value="2" required />
+        </label>
+        <label>Maximum Bid Value
+          <input name="maximum_allowed_bid" type="number" min="1" required />
+        </label>
+        <label>Start Date/Time
+          <input name="start_date" type="datetime-local" required />
+        </label>
+        <label>End Date/Time
+          <input name="end_date" type="datetime-local" required />
+        </label>
+      </div>
+
+      <section class="stage-box auction-type-panel auction-type-panel-compact" data-auction-type-section="forward" hidden>
+        <h4>Forward auction details</h4>
+        <div class="grid-form">
+          <label class="half-span">Starting Bid Value
+            <input name="starting_bid_value" type="number" min="0" required />
+          </label>
+          <label class="full-span">What is being sold?
+            <textarea name="subject_description" rows="2" placeholder="Describe the item, lot, or material being sold" required></textarea>
+          </label>
+          <label class="full-span">Material condition notes
+            <textarea name="condition_notes" rows="2" placeholder="State condition, quality, or handling rules" required></textarea>
+          </label>
+          <label class="half-span">Written files
+            <input name="written_files" type="file" multiple accept=".pdf,.doc,.docx,.txt,.rtf,.md,.png,.jpg,.jpeg,.gif,.webp" />
+          </label>
+          <label class="half-span">Media files
+            <input name="media_files" type="file" multiple accept="image/*,video/*,audio/*" />
+          </label>
+        </div>
+      </section>
+
+      <section class="stage-box auction-type-panel auction-type-panel-compact" data-auction-type-section="reverse">
+        <h4>Reverse auction details</h4>
+        <div class="grid-form">
+          <label class="full-span">What deal is being requested?
+            <textarea name="subject_description" rows="2" placeholder="Describe the procurement request or work deal" required></textarea>
+          </label>
+          <label class="half-span">Desired quality
+            <input name="desired_quality" placeholder="Example: premium grade, lab-ready, weatherproof" required />
+          </label>
+          <label class="half-span">Source / where to procure from
+            <input name="source_location" placeholder="Example: local supplier, vendor city, region" required />
+          </label>
+          <label class="full-span">Requirement notes
+            <textarea name="condition_notes" rows="2" placeholder="State required standards, constraints, or acceptance conditions" required></textarea>
+          </label>
+          <label class="half-span">Written files
+            <input name="written_files" type="file" multiple accept=".pdf,.doc,.docx,.txt,.rtf,.md,.png,.jpg,.jpeg,.gif,.webp" />
+          </label>
+          <label class="half-span">Media files
+            <input name="media_files" type="file" multiple accept="image/*,video/*,audio/*" />
+          </label>
+        </div>
+      </section>
+
+      <button type="submit" class="auction-submit">Create Auction</button>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="auction-feed">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Available auctions</p>
+        <h3>Available Auctions</h3>
+      </div>
+    </div>
+
+    {% if auctions %}
+    <div class="cards-grid">
+      {% for a in auctions %}
+      <article class="card auction-card glass">
+        <div class="auction-card-top">
+          <div>
+            <h3>{{ a.title }}</h3>
+          </div>
+          <div class="activity-meta">
+            <span class="type-pill {{ a.auction_type }}">{{ a.auction_type_label }} auction</span>
+            <span class="badge status-{{ a.status|lower }}">{{ a.status.replace('_', ' ').upper() }}</span>
+          </div>
+        </div>
+
+        <div class="detail-grid auction-detail-grid">
+          <div class="detail-card">
+            <span>k Auctioneers</span>
+            <strong>{{ a.required_auctioneers }}</strong>
+          </div>
+          <div class="detail-card">
+            <span>Auctioneer Pool</span>
+            <strong>{{ a.auctioneers|length }}</strong>
+          </div>
+          <div class="detail-card detail-card-wide">
+            <span>{{ a.subject_heading }}</span>
+            <strong>{{ a.subject_description or 'Not provided' }}</strong>
+          </div>
+          <div class="detail-card detail-card-wide">
+            <span>{{ a.condition_heading }}</span>
+            <strong>{{ a.condition_notes or 'Not provided' }}</strong>
+          </div>
+          {% if a.auction_type == 'forward' %}
+          <div class="detail-card">
+            <span>Starting Bid</span>
+            <strong>{{ a.bid_floor }}</strong>
+          </div>
+          <div class="detail-card">
+            <span>Maximum Bid</span>
+            <strong>{{ a.bid_ceiling }}</strong>
+          </div>
+          {% else %}
+          <div class="detail-card">
+            <span>Desired Quality</span>
+            <strong>{{ a.desired_quality or 'Not provided' }}</strong>
+          </div>
+          <div class="detail-card">
+            <span>Source / Location</span>
+            <strong>{{ a.source_location or 'Not provided' }}</strong>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="auction-foot">
+          <div class="auction-foot-copy">
+            <span>Window</span>
+            <strong>{{ a.start_date_display or a.start_date }} to {{ a.end_date_display or a.end_date }}</strong>
+            <span>Files: {{ a.written_assets|length }} written, {{ a.media_assets|length }} media</span>
+          </div>
+
+          <div class="auction-actions">
+            {% if role == 'auctioneer' %}
+              <a class="btn-link" href="{{ url_for('auctioneer_panel', auction_id=a._id) }}">Open Auctioneer Panel</a>
+            {% endif %}
+
+            {% if role == 'bidder' %}
+              {% if session['user_id'] not in a.bidders %}
+                {% if a.status in ['REGISTRATION', 'BIDDING_OPEN'] %}
+                <form action="{{ url_for('register_bidder_to_auction', auction_id=a._id) }}" method="post">
+                  <button>Participate (Generate Key Pair)</button>
+                </form>
+                {% else %}
+                <span class="muted">Participation closed for this stage</span>
+                {% endif %}
+              {% else %}
+              <a class="btn-link" href="{{ url_for('bidder_panel', auction_id=a._id) }}">Open Bidder Panel</a>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card empty-state glass">
+      <h4>No auctions yet</h4>
+      <p class="muted">Once auctions are created or shared with you, they will appear here with the same action buttons and stage data.</p>
+    </div>
+    {% endif %}
+  </section>
+</section>
 {% endblock %}

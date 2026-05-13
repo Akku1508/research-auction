@@ -39,6 +39,8 @@ class EllipticCurve:
         if x1 == x2:
             if y1 != y2:
                 return None
+            if y1 == 0:
+                return None
             lmb = (3 * x1 * x1 + self.a) * self.mod_inverse(2 * y1, self.p) % self.p
         else:
             lmb = (y2 - y1) * self.mod_inverse(x2 - x1, self.p) % self.p
@@ -70,6 +72,45 @@ class EllipticCurve:
 
     def hash_to_scalar(self, data: bytes):
         return int.from_bytes(hashlib.sha256(data).digest(), "big") % self.n
+
+    def is_on_curve(self, point):
+        if point is None:
+            return True
+        x, y = point
+        return (y * y - (x * x * x + self.a * x + self.b)) % self.p == 0
+
+    def _mod_sqrt(self, value):
+        if value == 0:
+            return 0
+        # secp256k1 prime satisfies p % 4 == 3, so Tonelli-Shanks simplifies.
+        root = pow(value, (self.p + 1) // 4, self.p)
+        if (root * root) % self.p != value % self.p:
+            return None
+        return root
+
+    def hash_to_point(self, data: bytes):
+        """
+        Deterministically map bytes to a curve point using try-and-increment.
+
+        The point is derived from a hash-to-curve search so it is independent
+        from the base generator in the context of the implementation.
+        """
+        if not isinstance(data, (bytes, bytearray)):
+            data = str(data).encode("utf-8")
+
+        counter = 0
+        while True:
+            digest = hashlib.sha256(data + counter.to_bytes(4, "big")).digest()
+            x = int.from_bytes(digest, "big") % self.p
+            rhs = (x * x * x + self.b) % self.p
+            y = self._mod_sqrt(rhs)
+            if y is not None and y != 0:
+                if y & 1:
+                    y = self.p - y
+                point = (x, y)
+                if point != self.G and self.is_on_curve(point):
+                    return point
+            counter += 1
 
     def points_equal(self, p1, p2):
         if p1 is None or p2 is None:

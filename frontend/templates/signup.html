@@ -1,20 +1,93 @@
 {% extends 'base.html' %}
+{% block title %}Signup | Research Auction{% endblock %}
 {% block content %}
-<div class="card narrow">
-  <h2>Signup</h2>
-  <form method="post">
-    <label>Full Name</label><input name="full_name" required />
-    <label>Email</label><input name="email" type="email" required />
-    <label>Phone</label><input name="phone" required />
-    <label>Username</label><input name="username" required />
-    <label>Password</label><input name="password" type="password" required />
-    <label>Role</label>
-    <select name="role" required>
-      <option value="bidder">Bidder</option>
-      <option value="auctioneer">Auctioneer</option>
-    </select>
-    <button type="submit">Create Account</button>
-  </form>
-  <p>Already have account? <a href="{{ url_for('login') }}">Login here</a></p>
-</div>
+<section class="auth-layout">
+  <section class="auth-hero glass">
+    <div class="auth-hero-copy">
+      <h1>Privacy Preserving Online Auction Bidding System</h1>
+      <p>Register as a bidder or auctioneer for secure, verifiable online auctions.</p>
+    </div>
+
+    <div class="auth-visual" aria-hidden="true">
+      <div class="auction-scene">
+        <div class="scene-shadow"></div>
+        <div class="auction-platform"></div>
+        <div class="auction-column column-left"></div>
+        <div class="auction-column column-center"></div>
+        <div class="auction-column column-right"></div>
+        <div class="auction-screen">
+          <span class="auction-screen-kicker">LIVE AUCTION</span>
+          <strong>Hidden Bids</strong>
+          <span class="auction-screen-line line-accent"></span>
+          <span class="auction-screen-line line-soft"></span>
+        </div>
+        <div class="auction-gavel">
+          <span class="gavel-head"></span>
+          <span class="gavel-band"></span>
+          <span class="gavel-handle"></span>
+        </div>
+        <div class="auction-scene-card bid-card">
+          <span>Bid</span>
+          <strong>Encrypted</strong>
+        </div>
+        <div class="auction-scene-card proof-card">
+          <span>Proof</span>
+          <strong>Verified</strong>
+        </div>
+        <div class="auction-orb orb-indigo"></div>
+        <div class="auction-orb orb-orange"></div>
+        <div class="auction-orb orb-green"></div>
+      </div>
+    </div>
+
+    <div class="auth-feature-list auth-feature-grid">
+      <div class="auth-feature auth-feature-compact">
+        <strong>Anonymous bidding</strong>
+      </div>
+      <div class="auth-feature auth-feature-compact">
+        <strong>Bid integrity</strong>
+      </div>
+      <div class="auth-feature auth-feature-compact">
+        <strong>Winner verification</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="auth-panel glass">
+    <div class="auth-panel-head">
+      <p class="eyebrow">Registration</p>
+      <h2>Create account</h2>
+      <p class="muted">Fill in the same required details and pick your role.</p>
+    </div>
+
+    <form method="post" class="grid-form auth-form-grid">
+      <label>Full Name
+        <input name="full_name" required />
+      </label>
+      <label>Email
+        <input name="email" type="email" required />
+      </label>
+      <label>Phone
+        <input name="phone" required />
+      </label>
+      <label>Username
+        <input name="username" required />
+      </label>
+      <label>Password
+        <input name="password" type="password" required />
+      </label>
+      <label>Role
+        <select name="role" required>
+          <option value="bidder">Bidder</option>
+          <option value="auctioneer">Auctioneer</option>
+        </select>
+      </label>
+      <div class="span-2">
+        <button type="submit">Create Account</button>
+      </div>
+    </form>
+
+    <p class="auth-switch muted">Already have account? <a href="{{ url_for('login') }}">Login</a></p>
+  </section>
+</section>
 {% endblock %}

@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+{% block title %}Bidder Panel | Research Auction{% endblock %}
+{% block page_title %}Bidder Panel{% endblock %}
+{% block page_intro %}{% endblock %}
+{% block content %}
+{% set written_assets = auction.written_assets or [] %}
+{% set media_assets = auction.media_assets or [] %}
+
+<section class="card hero-band glass">
+  <div class="hero-band-top">
+    <div>
+      <p class="eyebrow">Bidder workspace</p>
+      <h2>{{ auction.title }}</h2>
+      <p class="muted">{{ auction.winner_rule_label }}. Commit once, fetch OT key, reveal in reveal stage.</p>
+    </div>
+    <div class="activity-meta">
+      <span class="type-pill {{ auction.auction_type }}">{{ auction.auction_type_label }} auction</span>
+      <span class="badge status-{{ auction.status|lower }}">{{ auction.status.replace('_', ' ').upper() }}</span>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <div class="detail-card">
+      <span>Allowed Range</span>
+      <strong>{{ bid_floor }} to {{ bid_ceiling }}</strong>
+    </div>
+    <div class="detail-card">
+      <span>{{ auction.subject_heading }}</span>
+      <strong>{{ auction.subject_description or 'Not provided.' }}</strong>
+    </div>
+    <div class="detail-card">
+      <span>{{ auction.condition_heading }}</span>
+      <strong>{{ auction.condition_notes or 'Not provided.' }}</strong>
+    </div>
+    {% if auction.auction_type == 'forward' %}
+    <div class="detail-card">
+      <span>Starting Bid</span>
+      <strong>{{ auction.starting_bid_value }}</strong>
+    </div>
+    {% else %}
+    <div class="detail-card">
+      <span>Desired Quality / Source</span>
+      <strong>{{ auction.desired_quality or 'Not provided.' }} | {{ auction.source_location or 'Not provided.' }}</strong>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card notice-card notice-{{ stage_notice.tone }} glass">
+  <p class="eyebrow">Current Stage Guidance</p>
+  <h3>{{ stage_notice.title }}</h3>
+  <p>{{ stage_notice.message }}</p>
+</section>
+
+<section class="panel-grid">
+  <article class="card glass">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Reference material</p>
+        <h3>Auction details and files</h3>
+      </div>
+    </div>
+
+    <div class="asset-blocks">
+      <div>
+        <h4>Written files</h4>
+        {% if written_assets %}
+        <ul class="attachment-list">
+          {% for asset in written_assets %}
+          <li><a href="{{ url_for('static', filename=asset.path) }}" target="_blank" rel="noreferrer">{{ asset.original_name }}</a></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No written files uploaded yet.</p>
+        {% endif %}
+      </div>
+      <div>
+        <h4>Media files</h4>
+        {% if media_assets %}
+        <div class="asset-grid">
+          {% for asset in media_assets %}
+          {% set asset_url = url_for('static', filename=asset.path) %}
+          <article class="asset-card">
+            {% if asset.mimetype and asset.mimetype.startswith('image/') %}
+            <img src="{{ asset_url }}" alt="{{ asset.original_name }}" class="asset-preview" />
+            {% elif asset.mimetype and asset.mimetype.startswith('video/') %}
+            <video controls class="asset-preview">
+              <source src="{{ asset_url }}" type="{{ asset.mimetype }}" />
+            </video>
+            {% elif asset.mimetype and asset.mimetype.startswith('audio/') %}
+            <audio controls class="asset-audio">
+              <source src="{{ asset_url }}" type="{{ asset.mimetype }}" />
+            </audio>
+            {% else %}
+            <div class="asset-placeholder">Media file</div>
+            {% endif %}
+            <h6>{{ asset.original_name }}</h6>
+            <a class="btn-link" href="{{ asset_url }}" target="_blank" rel="noreferrer">Open file</a>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No media files uploaded yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+
+  <article class="card glass">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Your keys</p>
+        <h3>Participation identity</h3>
+      </div>
+    </div>
+
+    {% if bidder_public_key %}
+    <div class="detail-card full-width-card">
+      <span>Your Auction Public Key</span>
+      <strong>PK-{{ bidder_public_key[:12] }}...{{ bidder_public_key[-8:] }}</strong>
+    </div>
+    {% endif %}
+
+    {% if session.get('auction_pk_' ~ auction._id) %}
+    <div class="stage-box">
+      <h4>Auction Key Pair</h4>
+      <p><strong>Public Key Reference:</strong> PK-{{ session.get('auction_pk_' ~ auction._id)[:12] }}...{{ session.get('auction_pk_' ~ auction._id)[-8:] }}</p>
+      <pre id="pubKeyText" class="copy-buffer">{{ session.get('auction_pk_' ~ auction._id) }}</pre>
+      <div class="inline-actions">
+        <button type="button" class="btn-link" onclick="copyText('pubKeyText')">Copy Public Key</button>
+      </div>
+      <p class="muted">The session key stays in your browser session and is never shown to other participants.</p>
+    </div>
+    {% else %}
+    <p class="muted">Your auction key appears here after you register for this auction.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="panel-grid">
+  <article class="card glass">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Commitment stage</p>
+        <h3>Submit bid commitment</h3>
+      </div>
+    </div>
+
+    {% if auction.status == 'BIDDING_OPEN' %}
+      {% if bid_doc %}
+      <div class="stage-box">
+        <h4>Commitment locked</h4>
+        <p>Your bid is already committed and cannot be changed. It stays hidden from others until reveal.</p>
+        {% if chosen_bid_value %}
+        <p><strong>Your committed bid:</strong> {{ chosen_bid_value }}</p>
+        {% endif %}
+      </div>
+      {% else %}
+      <form action="{{ url_for('submit_bid', auction_id=auction._id) }}" method="post" class="stack-actions">
+        <label>Bid Value
+          <input name="bid_value" type="number" min="{{ bid_floor }}" max="{{ bid_ceiling }}" value="{{ chosen_bid_value or '' }}" required />
+        </label>
+        <label>Commitment Randomness (r_i)
+          <input id="bidRandomnessInput" name="randomness" type="text" placeholder="Generate random r_i" required />
+        </label>
+        <div class="inline-actions">
+          <button type="button" class="btn-link" onclick="generateRandomness('bidRandomnessInput', 'bidRandomnessPreview')">Generate r_i</button>
+          <button type="button" class="btn-link" onclick="copyInputValue('bidRandomnessInput')">Copy r_i</button>
+        </div>
+        <pre id="bidRandomnessPreview" class="preview-box">Generated r_i will appear here.</pre>
+        <button>Submit Commitment + Ring Signature</button>
+      </form>
+      {% endif %}
+    {% else %}
+    <p class="muted">Bid submission is locked until the auctioneer starts the auction.</p>
+    {% endif %}
+  </article>
+
+  <article class="card glass">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Reveal stage</p>
+        <h3>Retrieve OT value and reveal</h3>
+      </div>
+    </div>
+
+    {% if auction.status == 'OT_READY' %}
+    <form action="{{ url_for('retrieve_ot_value', auction_id=auction._id) }}" method="post" class="stack-actions">
+      <label>Enter your committed bid value to retrieve the OT shared key
+        <input name="bid_index" type="number" min="{{ bid_floor }}" max="{{ bid_ceiling }}" value="{{ chosen_bid_value or '' }}" placeholder="Enter bid value between {{ bid_floor }} and {{ bid_ceiling }}" required />
+      </label>
+      <button>Retrieve OT Shared Key for Your Bid Value</button>
+    </form>
+
+    {% if ot_shared_key_value %}
+    <div class="stage-box">
+      <h4>Retrieved OT Shared Key</h4>
+      <pre id="otSharedKeyText">{{ ot_shared_key_value or '' }}</pre>
+      <div class="inline-actions">
+        <button type="button" class="btn-link" onclick="copyText('otSharedKeyText')">Copy OT Shared Key</button>
+      </div>
+    </div>
+    {% endif %}
+
+    <form action="{{ url_for('reveal_bid', auction_id=auction._id) }}" method="post" class="stack-actions">
+      <label>Reveal Bid (b_i)
+        <input name="bid_value" type="number" min="{{ bid_floor }}" max="{{ bid_ceiling }}" value="{{ chosen_bid_value or '' }}" {% if chosen_bid_value %}readonly{% endif %} required />
+      </label>
+      <label>Reveal Randomness (r_i)
+        <input name="randomness" type="text" value="{{ reveal_randomness_value or '' }}" required />
+      </label>
+      <label>Reveal OT Key
+        <input name="shared_key" type="text" value="{{ ot_shared_key_value or '' }}" required />
+      </label>
+      <button>Reveal (b_i, r_i, ot_key) for Auctioneer Verification</button>
+    </form>
+    {% else %}
+    <p class="muted">Reveal stage opens only after OT is prepared by the auctioneer.</p>
+    {% endif %}
+  </article>
+</section>
+
+{% if bid_doc %}
+<section class="card glass">
+  <div class="section-header">
+    <div>
+      <p class="eyebrow">Bid Revelation</p>
+      <h3>{% if bid_doc.revealed_bid is not none %}Bid revealed successfully{% else %}Bid submitted successfully{% endif %}</h3>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <div class="detail-card">
+      <span>Auction Status</span>
+      <strong>{{ auction.status.replace('_', ' ').upper() }}</strong>
+    </div>
+    <div class="detail-card">
+      <span>Bid Value</span>
+      <strong>{{ bid_doc.revealed_bid if bid_doc.revealed_bid is not none else (chosen_bid_value or 'Hidden') }}</strong>
+    </div>
+    <div class="detail-card">
+      <span>Blinding Factor</span>
+      <strong>{{ bid_doc.randomness if bid_doc.randomness else 'Hidden until reveal' }}</strong>
+    </div>
+    <div class="detail-card">
+      <span>Verification</span>
+      <strong>{% if bid_doc.is_valid is none %}PENDING{% elif bid_doc.is_valid %}YES{% else %}NO{% endif %}</strong>
+    </div>
+  </div>
+
+  <div class="check-line">
+    <span>Commitment Verified: {% if bid_doc.commitment_valid is none %}PENDING{% elif bid_doc.commitment_valid %}YES{% else %}NO{% endif %}</span>
+    <span>Signature Verified: {% if bid_doc.ring_signature %}YES{% else %}NO{% endif %}</span>
+    <span>Overall Verified: {% if bid_doc.is_valid is none %}PENDING{% elif bid_doc.is_valid %}YES{% else %}NO{% endif %}</span>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
